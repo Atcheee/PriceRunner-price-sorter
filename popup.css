@@ -1,0 +1,44 @@
+body {
+  margin: 0;
+  font-family: Arial, sans-serif;
+  background: #f8f9fb;
+  color: #1b1d25;
+}
+
+.popup {
+  width: 280px;
+  padding: 14px;
+}
+
+.title {
+  margin: 0 0 8px;
+  font-size: 16px;
+}
+
+.hint {
+  margin: 0 0 12px;
+  font-size: 13px;
+  color: #5a6275;
+}
+
+#sort-now {
+  width: 100%;
+  border: 0;
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-weight: 700;
+  color: #fff;
+  background: #1e2a5a;
+  cursor: pointer;
+}
+
+#sort-now:hover {
+  background: #2d3f83;
+}
+
+#status {
+  min-height: 18px;
+  margin: 10px 2px 0;
+  font-size: 12px;
+  color: #314074;
+}

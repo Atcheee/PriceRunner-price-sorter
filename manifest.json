@@ -1,0 +1,31 @@
+{
+  "manifest_version": 3,
+  "name": "PriceRunner PriceSorter",
+  "version": "1.0.0",
+  "description": "Sorts PriceRunner watchlist rows by savings (Startpris - Pris nu).",
+  "permissions": [
+    "tabs"
+  ],
+  "action": {
+    "default_title": "PriceRunner PriceSorter",
+    "default_popup": "popup.html"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "*://*.pricerunner.se/*",
+        "*://*.pricerunner.dk/*",
+        "*://*.pricerunner.no/*",
+        "*://*.pricerunner.fi/*",
+        "*://*.pricerunner.com/*"
+      ],
+      "js": [
+        "content.js"
+      ],
+      "css": [
+        "styles.css"
+      ],
+      "run_at": "document_idle"
+    }
+  ]
+}
