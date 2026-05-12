@@ -8,12 +8,13 @@
 
   const BUTTON_ID = "pricesorter-sort-button";
   const BUTTON_TEXT = "Sortera efter besparing";
+  const SAVINGS_PERCENT_CLASS = "pricesorter-savings-percent";
   const CONTAINER_SELECTORS = [
     "div.pr-16fbr99",
     "div[data-cursor-element-id='cursor-el-1']",
     "div#content-below-header"
   ];
-  const PRICE_TOKEN_REGEX = /(?:\d[\d\s.,]*\s*kr|-)/gi;
+  const PRICE_TOKEN_REGEX = /(?:(?:\d{1,3}(?:[\s\u00a0]\d{3})+|\d+)(?:[.,]\d+)?\s*kr|-)/gi;
 
   function normalizeText(value) {
     return (value || "").replace(/\s+/g, " ").trim();
@@ -24,11 +25,15 @@
     if (!normalized) return { value: null, inactive: true };
     if (normalized === "-") return { value: null, inactive: true };
 
-    const numeric = normalized
-      .replace("kr", "")
-      .replace(/\s+/g, "")
-      .replace(",", ".")
-      .replace(/[^\d.-]/g, "");
+    const numericPart = normalized.replace("kr", "").trim();
+    const numericMatch =
+      numericPart.match(/-?\d{1,3}(?:\s\d{3})+(?:[.,]\d+)?/) ||
+      numericPart.match(/-?\d+(?:[.,]\d+)?/);
+    if (!numericMatch) {
+      return { value: null, inactive: false };
+    }
+
+    const numeric = numericMatch[0].replace(/\s+/g, "").replace(",", ".");
 
     if (!numeric || numeric === "-" || numeric === ".") {
       return { value: null, inactive: true };
@@ -39,6 +44,32 @@
       return { value: null, inactive: false };
     }
     return { value, inactive: false };
+  }
+
+  function parseFirstPriceTokenFromText(text) {
+    const tokens = normalizeText(text).match(PRICE_TOKEN_REGEX) || [];
+    if (!tokens.length) return { value: null, inactive: true };
+    return parsePriceToken(tokens[0]);
+  }
+
+  function getPriceTokensFromNode(root) {
+    if (!root) return [];
+    const textNodes = [];
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+    let current = walker.nextNode();
+    while (current) {
+      textNodes.push(current.textContent || "");
+      current = walker.nextNode();
+    }
+
+    const tokenRegex = new RegExp(PRICE_TOKEN_REGEX.source, "gi");
+    return textNodes.flatMap((text) => text.match(tokenRegex) || []);
+  }
+
+  function parseFirstPriceTokenFromNode(node) {
+    const tokens = getPriceTokensFromNode(node);
+    if (!tokens.length) return { value: null, inactive: true };
+    return parsePriceToken(tokens[0]);
   }
 
   function countPriceTokens(text) {
@@ -139,23 +170,95 @@
     return { headerRow, startIndex, nowIndex };
   }
 
-  function extractPricesFromRow(row, headerInfo) {
-    const cellTexts = getCells(row);
+  function formatSavingsPercent(startValue, nowValue) {
+    if (typeof startValue !== "number" || typeof nowValue !== "number") return null;
+    if (startValue <= 0) return null;
+    const percent = ((startValue - nowValue) / startValue) * 100;
+    if (!Number.isFinite(percent)) return null;
+    if (percent >= 0) return `Spar ${percent.toFixed(1)}%`;
+    return `Ökat ${Math.abs(percent).toFixed(1)}%`;
+  }
 
-    if (headerInfo.startIndex >= 0 && headerInfo.nowIndex >= 0) {
-      const startToken = cellTexts[headerInfo.startIndex] ?? "";
-      const nowToken = cellTexts[headerInfo.nowIndex] ?? "";
+  function getCellElements(row) {
+    return Array.from(row.querySelectorAll(":scope > *")).filter((el) => normalizeText(el.textContent));
+  }
+
+  function clearSavingsPercent(row) {
+    row.querySelectorAll(`.${SAVINGS_PERCENT_CLASS}`).forEach((node) => node.remove());
+  }
+
+  function pickFallbackPricePair(parsedTokens) {
+    const numericValues = parsedTokens
+      .map((token) => token.value)
+      .filter((value) => typeof value === "number" && Number.isFinite(value) && value > 0);
+
+    if (!numericValues.length) {
       return {
-        start: parsePriceToken(startToken),
-        now: parsePriceToken(nowToken)
+        start: parsedTokens[0] ?? { value: null, inactive: true },
+        now: parsedTokens[1] ?? { value: null, inactive: true }
       };
     }
 
-    const tokens = normalizeText(row.textContent).match(/(?:\d[\d\s.,]*\s*kr|-)/gi) || [];
+    if (numericValues.length === 1) {
+      return {
+        start: { value: numericValues[0], inactive: false },
+        now: { value: null, inactive: true }
+      };
+    }
+
+    const sortedDescending = [...numericValues].sort((a, b) => b - a);
     return {
-      start: parsePriceToken(tokens[0] ?? ""),
-      now: parsePriceToken(tokens[1] ?? "")
+      start: { value: sortedDescending[0], inactive: false },
+      now: { value: sortedDescending[1], inactive: false }
     };
+  }
+
+  function renderSavingsPercent(row, headerInfo, startValue, nowValue) {
+    clearSavingsPercent(row);
+    const label = formatSavingsPercent(startValue, nowValue);
+    if (!label) return;
+
+    const badge = document.createElement("span");
+    badge.className = SAVINGS_PERCENT_CLASS;
+    badge.textContent = ` (${label})`;
+    badge.style.marginLeft = "4px";
+    badge.style.fontWeight = "600";
+    badge.style.color = "#0f8a2f";
+
+    const cellElements = getCellElements(row);
+    if (headerInfo.nowIndex >= 0 && cellElements[headerInfo.nowIndex]) {
+      cellElements[headerInfo.nowIndex].appendChild(badge);
+      return;
+    }
+    row.appendChild(badge);
+  }
+
+  function extractPricesFromRow(row, headerInfo) {
+    const cellElements = getCellElements(row);
+    const cellTexts = cellElements.length ? cellElements.map((el) => normalizeText(el.textContent)) : getCells(row);
+    const rowTokens = getPriceTokensFromNode(row);
+    const parsedRowTokens = rowTokens.map((token) => parsePriceToken(token));
+    const fallbackPair = pickFallbackPricePair(parsedRowTokens);
+
+    if (headerInfo.startIndex >= 0 && headerInfo.nowIndex >= 0) {
+      const startCell = cellElements[headerInfo.startIndex];
+      const nowCell = cellElements[headerInfo.nowIndex];
+
+      const start = startCell
+        ? parseFirstPriceTokenFromNode(startCell)
+        : parseFirstPriceTokenFromText(cellTexts[headerInfo.startIndex] ?? "");
+      const now = nowCell
+        ? parseFirstPriceTokenFromNode(nowCell)
+        : parseFirstPriceTokenFromText(cellTexts[headerInfo.nowIndex] ?? "");
+
+      if (start.value != null && now.value != null && now.value > 0) {
+        return { start, now };
+      }
+
+      return fallbackPair;
+    }
+
+    return fallbackPair;
   }
 
   function sortRowsBySavings() {
@@ -172,8 +275,11 @@
     const analyzed = dataRows.map((row, originalIndex) => {
       const prices = extractPricesFromRow(row, headerInfo);
       const hasInactiveListing = prices.start.inactive || prices.now.inactive;
+      const startValue = prices.start.value;
+      const nowValue = prices.now.value;
+      renderSavingsPercent(row, headerInfo, prices.start.value, prices.now.value);
 
-      if (prices.start.value == null || prices.now.value == null) {
+      if (startValue == null || nowValue == null) {
         return {
           row,
           originalIndex,
@@ -188,7 +294,7 @@
         originalIndex,
         sortable: true,
         inactive: false,
-        difference: prices.start.value - prices.now.value
+        difference: startValue - nowValue
       };
     });
 
