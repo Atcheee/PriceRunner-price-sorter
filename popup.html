@@ -1,18 +1,12 @@
 <!doctype html>
 <html lang="sv">
   <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>PriceSorter</title>
-    <link rel="stylesheet" href="popup.css" />
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>PriceRunner Extension</title>
   </head>
   <body>
-    <main class="popup">
-      <h1 class="title">PriceSorter</h1>
-      <p class="hint">Sortera bevakningar efter största prisdifferens.</p>
-      <button id="sort-now" type="button">Sortera nu</button>
-      <p id="status" aria-live="polite"></p>
-    </main>
-    <script src="popup.js"></script>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>

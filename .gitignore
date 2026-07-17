@@ -1,0 +1,10 @@
+# Local secrets and licensed registry credentials
+.env.local
+.env.*.local
+
+# Generated artifacts
+node_modules/
+.smoke/
+dist/
+release/
+*.zip
