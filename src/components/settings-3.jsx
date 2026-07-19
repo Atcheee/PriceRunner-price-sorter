@@ -6,8 +6,11 @@ import {
   Eye,
   EyeOff,
   ListFilter,
+  Monitor,
+  Moon,
   RotateCcw,
   ShieldCheck,
+  Sun,
   XCircle,
 } from "lucide-react";
 
@@ -20,16 +23,16 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
-import { copy, sortModes } from "@/i18n";
+import {
+  copy,
+  normalizeSavingSortMode,
+  SAVING_SORT_MODES,
+  sortModes,
+} from "@/i18n";
+import { cn } from "@/lib/utils";
+import { applyTheme, normalizeTheme, THEME_MODES } from "@/theme";
 
 const DEFAULT_PAGE_STATE = {
   supported: false,
@@ -44,6 +47,18 @@ const DEFAULT_PAGE_STATE = {
     largestSaving: null,
     staleParserWarning: false,
   },
+};
+
+const THEME_OPTIONS = [
+  { value: THEME_MODES.LIGHT, label: copy.privacy.themeLight, icon: Sun },
+  { value: THEME_MODES.DARK, label: copy.privacy.themeDark, icon: Moon },
+  { value: THEME_MODES.SYSTEM, label: copy.privacy.themeSystem, icon: Monitor },
+];
+
+const THEME_ANNOUNCEMENTS = {
+  [THEME_MODES.LIGHT]: copy.actions.themeLight,
+  [THEME_MODES.DARK]: copy.actions.themeDark,
+  [THEME_MODES.SYSTEM]: copy.actions.themeSystem,
 };
 
 const HEALTH_PRESENTATION = {
@@ -125,10 +140,82 @@ function PageHealth({ pageState }) {
   );
 }
 
-export function Settings3() {
+function SortModeToggle({ value, onChange, disabled }) {
+  return (
+    <div
+      role="radiogroup"
+      aria-label={copy.sort.modeLabel}
+      className="grid grid-cols-2 gap-1 rounded-lg border bg-muted/40 p-1"
+    >
+      {sortModes.map((option) => {
+        const selected = value === option.value;
+        return (
+          <button
+            key={option.value}
+            type="button"
+            role="radio"
+            aria-checked={selected}
+            disabled={disabled}
+            onClick={() => onChange(option.value)}
+            className={cn(
+              "rounded-md px-3 py-2 text-sm font-semibold transition-colors outline-none",
+              "focus-visible:ring-3 focus-visible:ring-ring/50",
+              "disabled:pointer-events-none disabled:opacity-50",
+              selected
+                ? "bg-background text-foreground shadow-sm"
+                : "text-muted-foreground hover:text-foreground",
+            )}
+          >
+            {option.shortLabel === "%" ? copy.sort.percent : copy.sort.kr}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function ThemeToggle({ value, onChange, disabled }) {
+  return (
+    <div
+      role="radiogroup"
+      aria-label={copy.privacy.themeLabel}
+      className="grid grid-cols-3 gap-1 rounded-lg border bg-muted/40 p-1"
+    >
+      {THEME_OPTIONS.map((option) => {
+        const selected = value === option.value;
+        const Icon = option.icon;
+        return (
+          <button
+            key={option.value}
+            type="button"
+            role="radio"
+            aria-checked={selected}
+            aria-label={option.label}
+            disabled={disabled}
+            onClick={() => onChange(option.value)}
+            className={cn(
+              "inline-flex items-center justify-center gap-1.5 rounded-md px-2 py-2 text-xs font-semibold transition-colors outline-none",
+              "focus-visible:ring-3 focus-visible:ring-ring/50",
+              "disabled:pointer-events-none disabled:opacity-50",
+              selected
+                ? "bg-background text-foreground shadow-sm"
+                : "text-muted-foreground hover:text-foreground",
+            )}
+          >
+            <Icon className="size-3.5 shrink-0" aria-hidden="true" />
+            {option.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+export function Settings3({ initialTheme = THEME_MODES.SYSTEM }) {
   const [tabId, setTabId] = useState(null);
   const [pageState, setPageState] = useState(DEFAULT_PAGE_STATE);
-  const [sortMode, setSortMode] = useState("absoluteSaving");
+  const [sortMode, setSortMode] = useState(SAVING_SORT_MODES.PERCENTAGE);
+  const [theme, setTheme] = useState(() => normalizeTheme(initialTheme));
   const [showPageControl, setShowPageControl] = useState(true);
   const [busy, setBusy] = useState(false);
   const [announcement, setAnnouncement] = useState("");
@@ -140,6 +227,18 @@ export function Settings3() {
   );
 
   useEffect(() => {
+    applyTheme(theme);
+    if (theme !== THEME_MODES.SYSTEM) return undefined;
+
+    const media = globalThis.matchMedia?.("(prefers-color-scheme: dark)");
+    if (!media) return undefined;
+
+    const onChange = () => applyTheme(THEME_MODES.SYSTEM);
+    media.addEventListener("change", onChange);
+    return () => media.removeEventListener("change", onChange);
+  }, [theme]);
+
+  useEffect(() => {
     let active = true;
 
     async function load() {
@@ -147,13 +246,15 @@ export function Settings3() {
         const [tab, preferences] = await Promise.all([
           getActiveTab(),
           globalThis.chrome.storage.local.get({
-            sortMode: "absoluteSaving",
+            sortMode: SAVING_SORT_MODES.PERCENTAGE,
+            theme: THEME_MODES.SYSTEM,
             showPageControl: true,
           }),
         ]);
         if (!active) return;
         setTabId(tab?.id ?? null);
-        setSortMode(preferences.sortMode);
+        setSortMode(normalizeSavingSortMode(preferences.sortMode));
+        setTheme(normalizeTheme(preferences.theme));
         setShowPageControl(preferences.showPageControl);
         const response = await sendToTab(tab?.id, { type: "PRICESORTER_GET_STATE" });
         if (active && response?.summary) setPageState(response);
@@ -168,20 +269,36 @@ export function Settings3() {
     };
   }, []);
 
-  async function handleSort() {
+  async function handleSortModeChange(mode) {
+    const nextMode = normalizeSavingSortMode(mode);
+    setSortMode(nextMode);
+    await globalThis.chrome.storage.local.set({ sortMode: nextMode });
+  }
+
+  async function handleThemeChange(mode) {
+    const nextTheme = normalizeTheme(mode);
+    setTheme(nextTheme);
+    applyTheme(nextTheme);
+    await globalThis.chrome.storage.local.set({ theme: nextTheme });
+    setAnnouncement(THEME_ANNOUNCEMENTS[nextTheme]);
+  }
+
+  async function handleSort(mode = sortMode) {
     setBusy(true);
     setAnnouncement(copy.actions.working);
     try {
-      const response = await sendToTab(tabId, { type: "PRICESORTER_SORT", mode: sortMode });
+      const response = await sendToTab(tabId, { type: "PRICESORTER_SORT", mode });
       if (!response?.applied) {
         setAnnouncement(copy.actions.sortUnavailable);
       } else {
         setPageState(response);
-        setAnnouncement(
-          sortMode === "original"
-            ? copy.actions.restored
-            : `${copy.actions.sorted} ${selectedMode.label}.`,
-        );
+        if (mode === "original") {
+          setAnnouncement(copy.actions.restored);
+        } else {
+          const modeLabel =
+            sortModes.find((option) => option.value === mode)?.label ?? selectedMode.label;
+          setAnnouncement(`${copy.actions.sorted} ${modeLabel}.`);
+        }
       }
     } catch (_error) {
       setAnnouncement(copy.actions.reload);
@@ -236,29 +353,31 @@ export function Settings3() {
           <CardDescription>{copy.sort.description}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
-          <Select value={sortMode} onValueChange={setSortMode} disabled={!canAnalyze || busy}>
-            <SelectTrigger className="w-full" aria-label={copy.sort.modeLabel}>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {sortModes.map((option) => (
-                <SelectItem key={option.value} value={option.value}>
-                  {option.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <SortModeToggle
+            value={sortMode}
+            onChange={handleSortModeChange}
+            disabled={busy}
+          />
           <p className="text-muted-foreground text-[11px] leading-relaxed">{selectedMode.description}</p>
           <div className="grid grid-cols-2 gap-2">
-            <Button onClick={handleSort} disabled={!canAnalyze || busy}>
-              {sortMode === "original" ? <RotateCcw /> : <ListFilter />}
-              {sortMode === "original" ? copy.sort.restore : copy.sort.apply}
+            <Button onClick={() => handleSort(sortMode)} disabled={!canAnalyze || busy}>
+              <ListFilter />
+              {copy.sort.apply}
             </Button>
             <Button variant="outline" onClick={handleExport} disabled={!canAnalyze || busy}>
               <Download />
               {copy.sort.export}
             </Button>
           </div>
+          <Button
+            variant="ghost"
+            className="w-full"
+            onClick={() => handleSort("original")}
+            disabled={!canAnalyze || busy}
+          >
+            <RotateCcw />
+            {copy.sort.restore}
+          </Button>
         </CardContent>
       </Card>
 
@@ -268,6 +387,14 @@ export function Settings3() {
           <CardDescription>{copy.privacy.description}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
+          <div className="space-y-2">
+            <div>
+              <p className="text-sm font-medium">{copy.privacy.theme}</p>
+              <p className="text-muted-foreground text-[11px] leading-relaxed">{copy.privacy.themeDescription}</p>
+            </div>
+            <ThemeToggle value={theme} onChange={handleThemeChange} disabled={busy} />
+          </div>
+          <Separator />
           <div className="flex items-center justify-between gap-4">
             <div className="flex min-w-0 gap-2">
               {showPageControl ? <Eye className="mt-0.5 size-4 shrink-0" /> : <EyeOff className="mt-0.5 size-4 shrink-0" />}

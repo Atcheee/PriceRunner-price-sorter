@@ -41,7 +41,7 @@ test("sorting groups invalid rows and Original order restores stable DOM order",
   </body>`);
   const { document, PriceRunnerContent } = dom.window;
 
-  const sorted = PriceRunnerContent.applySort(PriceRunnerCore.SORT_MODES.ABSOLUTE_SAVING);
+  const sorted = PriceRunnerContent.applySort(PriceRunnerCore.SORT_MODES.PERCENTAGE_SAVING);
   assert.equal(sorted.applied, true);
   assert.equal(sorted.invalidCount, 1);
   assert.deepEqual(productNames(document), ["B", "A", "C"]);
@@ -79,18 +79,19 @@ test("table dates do not inflate rendered savings percentages", () => {
   </body>`);
   const { document, PriceRunnerContent } = dom.window;
 
-  const result = PriceRunnerContent.applySort(PriceRunnerCore.SORT_MODES.ABSOLUTE_SAVING);
+  const result = PriceRunnerContent.applySort(PriceRunnerCore.SORT_MODES.PERCENTAGE_SAVING);
   const badges = Array.from(document.querySelectorAll(".pricesorter-savings-percent"));
 
   assert.equal(result.applied, true);
   assert.deepEqual(
     badges.map((badge) => badge.textContent.trim()),
-    ["(Spar 21.9%)", "(Spar 3.7%)"],
+    ["(Spar 362 kr, 21.9%)", "(Spar 121 kr, 3.7%)"],
   );
   assert.deepEqual(
-    badges.map((badge) => badge.getAttribute("data-start-price")),
+    badges.map((badge) => badge.getAttribute("data-pricesorter-start")),
     ["1655", "3275"],
   );
+  assert.ok(badges.every((badge) => badge.parentElement?.tagName === "TD"));
   dom.window.close();
 });
 
@@ -155,5 +156,155 @@ test("MutationObserver debounces site mutations and updates supported-page contr
   await new Promise((resolve) => dom.window.setTimeout(resolve, 350));
   assert.equal(document.getElementById("pricesorter-sort-button"), null);
   PriceRunnerContent.stopObserver();
+  dom.window.close();
+});
+
+test("sticky sort reorders newly lazy-loaded rows", async () => {
+  const dom = createExtensionDom(`<!doctype html><body>
+    <div data-testid="watchlist">
+      <div><span>Produkt</span><span>Startpris</span><span>Pris nu</span></div>
+      <div data-product-row><a href="/a">A</a><span>1 000 kr</span><span>900 kr</span></div>
+      <div data-product-row><a href="/b">B</a><span>2 000 kr</span><span>1 200 kr</span></div>
+    </div>
+  </body>`);
+  const { document, PriceRunnerContent, PriceRunnerCore } = dom.window;
+  PriceRunnerContent.init();
+
+  const sorted = PriceRunnerContent.applySort(PriceRunnerCore.SORT_MODES.PERCENTAGE_SAVING);
+  assert.equal(sorted.applied, true);
+  assert.deepEqual(productNames(document), ["B", "A"]);
+
+  document.querySelector("[data-testid='watchlist']").insertAdjacentHTML(
+    "beforeend",
+    `<div data-product-row><a href="/c">C</a><span>5 000 kr</span><span>1 000 kr</span></div>`,
+  );
+  await new Promise((resolve) => dom.window.setTimeout(resolve, 350));
+
+  assert.deepEqual(productNames(document), ["C", "B", "A"]);
+  PriceRunnerContent.stopObserver();
+  dom.window.close();
+});
+
+test("sticky sort restores order when host re-render keeps the same count", async () => {
+  const dom = createExtensionDom(`<!doctype html><body>
+    <div data-testid="watchlist">
+      <div><span>Produkt</span><span>Startpris</span><span>Pris nu</span></div>
+      <div data-product-row><a href="/a">A</a><span>1 000 kr</span><span>900 kr</span></div>
+      <div data-product-row><a href="/b">B</a><span>2 000 kr</span><span>1 200 kr</span></div>
+    </div>
+  </body>`);
+  const { document, PriceRunnerContent, PriceRunnerCore } = dom.window;
+  PriceRunnerContent.init();
+
+  PriceRunnerContent.applySort(PriceRunnerCore.SORT_MODES.PERCENTAGE_SAVING);
+  assert.deepEqual(productNames(document), ["B", "A"]);
+  assert.equal(document.querySelectorAll(".pricesorter-savings-percent").length, 2);
+
+  const watchlist = document.querySelector("[data-testid='watchlist']");
+  // Simulate a host re-render that restores original order and drops our badges.
+  watchlist.innerHTML = `
+    <div><span>Produkt</span><span>Startpris</span><span>Pris nu</span></div>
+    <div data-product-row><a href="/a">A</a><span>1 000 kr</span><span>900 kr</span></div>
+    <div data-product-row><a href="/b">B</a><span>2 000 kr</span><span>1 200 kr</span></div>
+  `;
+  await new Promise((resolve) => dom.window.setTimeout(resolve, 350));
+
+  assert.deepEqual(productNames(document), ["B", "A"]);
+  assert.equal(document.querySelectorAll(".pricesorter-savings-percent").length, 2);
+  PriceRunnerContent.stopObserver();
+  dom.window.close();
+});
+
+test("sorting still works when non-product siblings sit between rows", () => {
+  const dom = createExtensionDom(`<!doctype html><body>
+    <div data-testid="watchlist">
+      <div><span>Produkt</span><span>Startpris</span><span>Pris nu</span></div>
+      <div data-product-row><a href="/a">A</a><span>1 000 kr</span><span>900 kr</span></div>
+      <div data-ad>Reklam</div>
+      <div data-product-row><a href="/b">B</a><span>2 000 kr</span><span>1 200 kr</span></div>
+    </div>
+  </body>`);
+  const { document, PriceRunnerContent, PriceRunnerCore } = dom.window;
+
+  const sorted = PriceRunnerContent.applySort(PriceRunnerCore.SORT_MODES.PERCENTAGE_SAVING);
+  assert.equal(sorted.applied, true);
+  assert.deepEqual(productNames(document), ["B", "A"]);
+  assert.equal(document.querySelectorAll(".pricesorter-savings-percent").length, 2);
+  dom.window.close();
+});
+
+test("loadAllWatchlistRows waits until product count stops growing", async () => {
+  const dom = createExtensionDom(`<!doctype html><body>
+    <div data-testid="watchlist">
+      <div><span>Produkt</span><span>Startpris</span><span>Pris nu</span></div>
+      <div data-product-row><a href="/a">A</a><span>1 000 kr</span><span>900 kr</span></div>
+    </div>
+  </body>`);
+  const { document, PriceRunnerContent } = dom.window;
+  const watchlist = document.querySelector("[data-testid='watchlist']");
+  let injected = 0;
+
+  const originalScrollTo = dom.window.scrollTo.bind(dom.window);
+  dom.window.scrollTo = (...args) => {
+    if (injected < 2) {
+      injected += 1;
+      const name = injected === 1 ? "B" : "C";
+      const start = injected === 1 ? "2 000 kr" : "5 000 kr";
+      const now = injected === 1 ? "1 200 kr" : "1 000 kr";
+      watchlist.insertAdjacentHTML(
+        "beforeend",
+        `<div data-product-row><a href="/${name.toLowerCase()}">${name}</a><span>${start}</span><span>${now}</span></div>`,
+      );
+    }
+    return originalScrollTo(...args);
+  };
+
+  const result = await PriceRunnerContent.loadAllWatchlistRows({
+    settleMs: 20,
+    stableRounds: 2,
+    maxRounds: 20,
+  });
+
+  assert.equal(result.loaded, true);
+  assert.equal(result.count, 3);
+  assert.ok(result.rounds >= 2);
+  assert.deepEqual(productNames(document), ["A", "B", "C"]);
+  dom.window.close();
+});
+
+test("sort after loadAll places highest percentage discount first across lazy rows", async () => {
+  const dom = createExtensionDom(`<!doctype html><body>
+    <div data-testid="watchlist">
+      <div><span>Produkt</span><span>Startpris</span><span>Pris nu</span></div>
+      <div data-product-row><a href="/a">A</a><span>10 000 kr</span><span>9 000 kr</span></div>
+    </div>
+  </body>`);
+  const { document, PriceRunnerContent, PriceRunnerCore } = dom.window;
+  const watchlist = document.querySelector("[data-testid='watchlist']");
+  let injected = false;
+
+  const originalScrollTo = dom.window.scrollTo.bind(dom.window);
+  dom.window.scrollTo = (...args) => {
+    if (!injected) {
+      injected = true;
+      watchlist.insertAdjacentHTML(
+        "beforeend",
+        // 500 kr / 50% — lower kr saving than A (1000 kr / 10%), higher percentage
+        `<div data-product-row><a href="/c">C</a><span>1 000 kr</span><span>500 kr</span></div>`,
+      );
+    }
+    return originalScrollTo(...args);
+  };
+
+  const loadResult = await PriceRunnerContent.loadAllWatchlistRows({
+    settleMs: 20,
+    stableRounds: 2,
+    maxRounds: 10,
+  });
+  const sorted = PriceRunnerContent.applySort(PriceRunnerCore.SORT_MODES.PERCENTAGE_SAVING);
+
+  assert.equal(loadResult.count, 2);
+  assert.equal(sorted.applied, true);
+  assert.deepEqual(productNames(document), ["C", "A"]);
   dom.window.close();
 });

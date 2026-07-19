@@ -10,15 +10,75 @@
 
   const BUTTON_ID = "pricesorter-sort-button";
   const CONTROL_CLASS = "pricesorter-control";
-  const BUTTON_TEXT = "Sortera efter besparing";
+  const BUTTON_TEXT_BY_MODE = Object.freeze({
+    [core.SORT_MODES.PERCENTAGE_SAVING]: "Sortera efter rabatt",
+    [core.SORT_MODES.ABSOLUTE_SAVING]: "Sortera efter besparing",
+  });
+  const SORTED_TEXT_BY_MODE = Object.freeze({
+    [core.SORT_MODES.PERCENTAGE_SAVING]: "Sorterat efter rabatt",
+    [core.SORT_MODES.ABSOLUTE_SAVING]: "Sorterat efter besparing",
+  });
+  const ARIA_LABEL_BY_MODE = Object.freeze({
+    [core.SORT_MODES.PERCENTAGE_SAVING]:
+      "PriceRunner Extension: sortera bevakningar efter rabatt",
+    [core.SORT_MODES.ABSOLUTE_SAVING]:
+      "PriceRunner Extension: sortera bevakningar efter besparing",
+  });
+  const LOADING_BUTTON_TEXT = "Laddar alla produkter…";
   const GROUP_LABEL_CLASS = "pricesorter-invalid-group-label";
   const SAVINGS_PERCENT_CLASS = "pricesorter-savings-percent";
   const OBSERVER_DEBOUNCE_MS = 250;
+  const LOAD_ALL_SETTLE_MS = 450;
+  const LOAD_ALL_MAX_ROUNDS = 50;
+  const LOAD_ALL_STABLE_ROUNDS = 3;
   const originalOrder = new WeakMap();
   let nextOriginalIndex = 0;
   let observer = null;
   let observerTimer = null;
+  let observerPauseDepth = 0;
   let pageControlEnabled = true;
+  let preferredSortMode = core.SORT_MODES.PERCENTAGE_SAVING;
+  let activeSortMode = null;
+  let lastSortedCount = 0;
+  let loadAllInProgress = false;
+
+  function normalizeSavingSortMode(mode) {
+    if (mode === core.SORT_MODES.ABSOLUTE_SAVING) return core.SORT_MODES.ABSOLUTE_SAVING;
+    return core.SORT_MODES.PERCENTAGE_SAVING;
+  }
+
+  function buttonTextForMode(mode = preferredSortMode) {
+    return BUTTON_TEXT_BY_MODE[normalizeSavingSortMode(mode)];
+  }
+
+  function sortedTextForMode(mode = preferredSortMode) {
+    return SORTED_TEXT_BY_MODE[normalizeSavingSortMode(mode)];
+  }
+
+  function ariaLabelForMode(mode = preferredSortMode) {
+    return ARIA_LABEL_BY_MODE[normalizeSavingSortMode(mode)];
+  }
+
+  function syncSortButtonLabel(mode = preferredSortMode) {
+    const button = document.getElementById(BUTTON_ID);
+    if (!button || button.disabled) return;
+    button.textContent = buttonTextForMode(mode);
+    button.setAttribute("aria-label", ariaLabelForMode(mode));
+  }
+
+  function pauseObserver() {
+    observerPauseDepth += 1;
+    if (observerPauseDepth > 1) return;
+    observer?.disconnect();
+    window.clearTimeout(observerTimer);
+    observerTimer = null;
+  }
+
+  function resumeObserver() {
+    if (observerPauseDepth > 0) observerPauseDepth -= 1;
+    if (observerPauseDepth > 0 || !observer) return;
+    observer.observe(document.documentElement, { childList: true, subtree: true });
+  }
 
   // Compatibility wrappers keep existing parser behavior covered while callers
   // migrate to PriceRunnerCore's richer result shape.
@@ -27,11 +87,20 @@
     return { value: parsed.value, inactive: parsed.inactive };
   }
 
+  function formatKrAmount(value) {
+    const amount = Math.round(Math.abs(value));
+    return String(amount).replace(/\B(?=(\d{3})+(?!\d))/g, "\u00a0");
+  }
+
   function formatSavingsPercent(startValue, nowValue) {
     const metrics = core.calculateMetrics({ startPrice: startValue, currentPrice: nowValue });
-    if (!Number.isFinite(metrics.percentageSaving)) return null;
-    if (metrics.percentageSaving >= 0) return `Spar ${metrics.percentageSaving.toFixed(1)}%`;
-    return `Ökat ${Math.abs(metrics.percentageSaving).toFixed(1)}%`;
+    if (!Number.isFinite(metrics.absoluteSaving)) return null;
+    const amountText = formatKrAmount(metrics.absoluteSaving);
+    const percent = Number.isFinite(metrics.percentageSaving)
+      ? `, ${Math.abs(metrics.percentageSaving).toFixed(1)}%`
+      : "";
+    if (metrics.absoluteSaving >= 0) return `Spar ${amountText} kr${percent}`;
+    return `Ökat ${amountText} kr${percent}`;
   }
 
   function analyzePage() {
@@ -72,6 +141,21 @@
     row.querySelectorAll(`.${SAVINGS_PERCENT_CLASS}`).forEach((node) => node.remove());
   }
 
+  // Table rows may only contain td/th. Appending a span to <tr> gets foster-parented
+  // outside the table in real browsers, so the badge never appears in the list.
+  function savingsAnchor(row) {
+    const cell = Array.from(row.children).find(
+      (element) =>
+        element.tagName === "TD" ||
+        element.tagName === "TH" ||
+        element.getAttribute?.("role") === "cell" ||
+        element.getAttribute?.("role") === "gridcell",
+    );
+    // Prefer a cell for tables/grids; otherwise keep the badge as a row sibling
+    // of the product link so link textContent stays clean.
+    return cell ?? row;
+  }
+
   function renderSavingsPercent(entry) {
     removeSavingsPercent(entry.row);
     const label = formatSavingsPercent(entry.product.startPrice, entry.product.currentPrice);
@@ -80,15 +164,15 @@
     const badge = document.createElement("span");
     badge.className = SAVINGS_PERCENT_CLASS;
     badge.setAttribute("data-pricesorter-owned", "true");
-    badge.setAttribute("data-start-price", String(entry.product.startPrice));
-    badge.setAttribute("data-current-price", String(entry.product.currentPrice));
+    badge.setAttribute("data-pricesorter-start", String(entry.product.startPrice));
+    badge.setAttribute("data-pricesorter-current", String(entry.product.currentPrice));
     badge.setAttribute(
       "aria-label",
       `${label}. Beräknat från ${entry.product.startPrice} kr till ${entry.product.currentPrice} kr.`,
     );
     badge.title = `Beräknat från ${entry.product.startPrice} kr till ${entry.product.currentPrice} kr`;
     badge.textContent = ` (${label})`;
-    entry.row.appendChild(badge);
+    savingsAnchor(entry.row).appendChild(badge);
   }
 
   function validateRowBlock(parent, entries) {
@@ -96,8 +180,8 @@
     const children = Array.from(parent.children);
     const indexes = entries.map(({ row }) => children.indexOf(row)).sort((left, right) => left - right);
     if (indexes.some((index) => index < 0)) return null;
-    const contiguous = indexes.every((index, position) => index === indexes[0] + position);
-    return contiguous ? { children, firstIndex: indexes[0], lastIndex: indexes.at(-1) } : null;
+    // Separators/ads between product rows are fine; sort still moves only product rows.
+    return { children, firstIndex: indexes[0], lastIndex: indexes.at(-1) };
   }
 
   function createInvalidGroupLabel(count) {
@@ -109,7 +193,124 @@
     return label;
   }
 
-  function applySort(mode = core.SORT_MODES.ABSOLUTE_SAVING) {
+  function sleep(ms) {
+    return new Promise((resolve) => window.setTimeout(resolve, ms));
+  }
+
+  function findScrollParent(element) {
+    let node = element;
+    while (node && node !== document.documentElement && node !== document.body) {
+      const style = window.getComputedStyle?.(node);
+      const overflowY = style?.overflowY ?? "";
+      const canScroll =
+        (overflowY === "auto" || overflowY === "scroll" || overflowY === "overlay") &&
+        node.scrollHeight > node.clientHeight + 1;
+      if (canScroll) return node;
+      node = node.parentElement;
+    }
+    return document.scrollingElement ?? document.documentElement;
+  }
+
+  function scrollWatchlistTowardEnd(analysis = analyzePage()) {
+    const scrollParent = findScrollParent(analysis.container ?? document.body);
+    if (
+      scrollParent === document.scrollingElement ||
+      scrollParent === document.documentElement ||
+      scrollParent === document.body
+    ) {
+      const height = Math.max(
+        document.body?.scrollHeight ?? 0,
+        document.documentElement?.scrollHeight ?? 0,
+      );
+      window.scrollTo(0, height);
+      return;
+    }
+    scrollParent.scrollTop = scrollParent.scrollHeight;
+  }
+
+  function productCount() {
+    return analyzePage().entries?.length ?? 0;
+  }
+
+  // PriceRunner alerts/watchlist pages lazy-load rows on scroll. Sorting only
+  // sees rows currently in the DOM, so we force the list to fully hydrate first.
+  async function loadAllWatchlistRows(options = {}) {
+    const settleMs = options.settleMs ?? LOAD_ALL_SETTLE_MS;
+    const maxRounds = options.maxRounds ?? LOAD_ALL_MAX_ROUNDS;
+    const stableRoundsNeeded = options.stableRounds ?? LOAD_ALL_STABLE_ROUNDS;
+    const manageObserver = options.manageObserver !== false;
+    if (loadAllInProgress) {
+      return { loaded: false, count: productCount(), rounds: 0, reason: "already-loading" };
+    }
+
+    loadAllInProgress = true;
+    if (manageObserver) pauseObserver();
+    let previousCount = -1;
+    let stableRounds = 0;
+    let rounds = 0;
+
+    try {
+      for (; rounds < maxRounds; rounds += 1) {
+        const analysis = analyzePage();
+        if (!analysis.supported) break;
+
+        const count = analysis.entries.length;
+        if (count === previousCount) {
+          stableRounds += 1;
+          if (stableRounds >= stableRoundsNeeded) break;
+        } else {
+          previousCount = count;
+          stableRounds = 0;
+        }
+
+        scrollWatchlistTowardEnd(analysis);
+        await sleep(settleMs);
+      }
+
+      window.scrollTo(0, 0);
+      // Let the host page finish reconciling after scroll-to-top before sorting.
+      await sleep(settleMs);
+      return { loaded: true, count: productCount(), rounds };
+    } finally {
+      loadAllInProgress = false;
+      if (manageObserver) resumeObserver();
+    }
+  }
+
+  function expectedSortedEntries(analysis, mode) {
+    if (mode === core.SORT_MODES.ORIGINAL) {
+      return [...analysis.entries].sort(
+        (left, right) => left.product.originalIndex - right.product.originalIndex,
+      );
+    }
+    const grouped = core.groupInvalidRows(
+      analysis.entries.map(({ product }) => product),
+      mode,
+    );
+    const validProducts = new Set(grouped.valid);
+    const validEntries = analysis.entries
+      .filter(({ product }) => validProducts.has(product))
+      .sort((left, right) => core.compareProducts(mode)(left.product, right.product));
+    const invalidEntries = analysis.entries
+      .filter(({ product }) => !validProducts.has(product))
+      .sort((left, right) => left.product.originalIndex - right.product.originalIndex);
+    return [...validEntries, ...invalidEntries];
+  }
+
+  function sortIntegrityIntact(analysis, mode) {
+    if (!analysis?.supported || !analysis.entries.length) return false;
+    if (analysis.entries.length !== lastSortedCount) return false;
+
+    const expected = expectedSortedEntries(analysis, mode);
+    if (expected.some((entry, index) => entry.row !== analysis.entries[index].row)) return false;
+
+    return analysis.entries.every((entry) => {
+      if (!Number.isFinite(entry.product.absoluteSaving)) return true;
+      return Boolean(entry.row.querySelector(`.${SAVINGS_PERCENT_CLASS}`));
+    });
+  }
+
+  function applySort(mode = core.SORT_MODES.PERCENTAGE_SAVING) {
     const analysis = analyzePage();
     if (!analysis.supported) {
       return { applied: false, changed: false, sortableCount: 0, invalidCount: 0, mode, ...publicPageState(analysis) };
@@ -150,17 +351,28 @@
 
     const orderedEntries = [...validEntries, ...invalidEntries];
     const changed = orderedEntries.some((entry, index) => entry !== analysis.entries[index]);
-    const marker = document.createComment("pricesorter-end-marker");
-    analysis.container.insertBefore(marker, rowBlock.children[rowBlock.lastIndex + 1] ?? null);
-    for (const entry of validEntries) analysis.container.insertBefore(entry.row, marker);
-    if (invalidEntries.length) {
-      analysis.container.insertBefore(createInvalidGroupLabel(invalidEntries.length), marker);
-      for (const entry of invalidEntries) analysis.container.insertBefore(entry.row, marker);
+    pauseObserver();
+    try {
+      const marker = document.createComment("pricesorter-end-marker");
+      analysis.container.insertBefore(marker, rowBlock.children[rowBlock.lastIndex + 1] ?? null);
+      for (const entry of validEntries) analysis.container.insertBefore(entry.row, marker);
+      if (invalidEntries.length) {
+        analysis.container.insertBefore(createInvalidGroupLabel(invalidEntries.length), marker);
+        for (const entry of invalidEntries) analysis.container.insertBefore(entry.row, marker);
+      }
+      marker.remove();
+      for (const entry of orderedEntries) renderSavingsPercent(entry);
+    } finally {
+      resumeObserver();
     }
-    marker.remove();
-    analysis.entries.forEach(renderSavingsPercent);
 
-    chrome?.storage?.local?.set?.({ sortMode: mode });
+    activeSortMode = mode === core.SORT_MODES.ORIGINAL ? null : mode;
+    if (mode === core.SORT_MODES.PERCENTAGE_SAVING || mode === core.SORT_MODES.ABSOLUTE_SAVING) {
+      preferredSortMode = mode;
+    }
+    lastSortedCount = orderedEntries.length;
+    chrome?.storage?.local?.set?.({ sortMode: mode === core.SORT_MODES.ORIGINAL ? preferredSortMode : mode });
+    syncSortButtonLabel(preferredSortMode);
     return {
       applied: true,
       changed,
@@ -169,6 +381,26 @@
       mode,
       ...publicPageState(analyzePage()),
     };
+  }
+
+  async function sortWithFullList(mode = core.SORT_MODES.PERCENTAGE_SAVING) {
+    pauseObserver();
+    try {
+      const loadResult = await loadAllWatchlistRows({ manageObserver: false });
+      // Hold the load gate through sort + settle so host mutations cannot wipe
+      // the result before we re-assert integrity.
+      loadAllInProgress = true;
+      let sortResult = applySort(mode);
+      await sleep(LOAD_ALL_SETTLE_MS);
+      if (mode !== core.SORT_MODES.ORIGINAL) {
+        const analysis = analyzePage();
+        if (!sortIntegrityIntact(analysis, mode)) sortResult = applySort(mode);
+      }
+      return { ...sortResult, loadResult };
+    } finally {
+      loadAllInProgress = false;
+      resumeObserver();
+    }
   }
 
   function exportCsv() {
@@ -195,20 +427,37 @@
     return { exported: true, count: analysis.entries.length, ...publicPageState(analysis) };
   }
 
-  function handleSortClick(event) {
+  async function exportCsvWithFullList() {
+    const loadResult = await loadAllWatchlistRows();
+    return { ...exportCsv(), loadResult };
+  }
+
+  async function handleSortClick(event) {
     event.preventDefault();
     const button = event.currentTarget;
-    const result = applySort(core.SORT_MODES.ABSOLUTE_SAVING);
-    if (!button) return;
+    if (!button || button.disabled) return;
 
+    const mode = preferredSortMode;
+    button.disabled = true;
     button.classList.add("pricesorter-flash");
+    button.textContent = LOADING_BUTTON_TEXT;
+
+    let result;
+    try {
+      result = await sortWithFullList(mode);
+    } catch (_error) {
+      result = { applied: false, changed: false };
+    }
+
     if (!result.applied) button.textContent = "Sortering inte tillgänglig";
     else if (!result.changed) button.textContent = "Ingen ordningsändring";
-    else button.textContent = "Sorterat efter besparing";
+    else button.textContent = sortedTextForMode(mode);
 
     window.setTimeout(() => {
+      button.disabled = false;
       button.classList.remove("pricesorter-flash");
-      button.textContent = BUTTON_TEXT;
+      button.textContent = buttonTextForMode(preferredSortMode);
+      button.setAttribute("aria-label", ariaLabelForMode(preferredSortMode));
     }, 1400);
   }
 
@@ -220,7 +469,10 @@
 
   function ensureSortButton(anchor = null) {
     let button = document.getElementById(BUTTON_ID);
-    if (button) return button;
+    if (button) {
+      syncSortButtonLabel(preferredSortMode);
+      return button;
+    }
 
     const control = document.createElement("div");
     control.className = CONTROL_CLASS;
@@ -230,8 +482,8 @@
     button.id = BUTTON_ID;
     button.type = "button";
     button.setAttribute("data-pricesorter-owned", "true");
-    button.setAttribute("aria-label", "PriceRunner Extension: sortera bevakningar efter besparing");
-    button.textContent = BUTTON_TEXT;
+    button.setAttribute("aria-label", ariaLabelForMode(preferredSortMode));
+    button.textContent = buttonTextForMode(preferredSortMode);
     button.addEventListener("click", handleSortClick);
     control.appendChild(button);
     if (anchor?.parentElement) anchor.parentElement.insertBefore(control, anchor);
@@ -255,21 +507,52 @@
   async function loadPreferences() {
     if (!chrome?.storage?.local?.get) return;
     try {
-      const preferences = await chrome.storage.local.get({ showPageControl: true });
+      const preferences = await chrome.storage.local.get({
+        showPageControl: true,
+        sortMode: core.SORT_MODES.PERCENTAGE_SAVING,
+      });
+      preferredSortMode = normalizeSavingSortMode(preferences.sortMode);
       setPageControl(preferences.showPageControl);
+      syncSortButtonLabel(preferredSortMode);
     } catch (_error) {
       // Default remains enabled when storage is unavailable.
     }
   }
 
+  function watchPreferences() {
+    if (!chrome?.storage?.onChanged?.addListener) return;
+    chrome.storage.onChanged.addListener((changes, areaName) => {
+      if (areaName !== "local") return;
+      if (Object.hasOwn(changes, "sortMode")) {
+        preferredSortMode = normalizeSavingSortMode(changes.sortMode?.newValue);
+        syncSortButtonLabel(preferredSortMode);
+      }
+      if (Object.hasOwn(changes, "showPageControl")) {
+        setPageControl(changes.showPageControl?.newValue !== false);
+      }
+    });
+  }
+
   function scheduleRefresh() {
     window.clearTimeout(observerTimer);
-    observerTimer = window.setTimeout(refreshAvailability, OBSERVER_DEBOUNCE_MS);
+    observerTimer = window.setTimeout(() => {
+      if (loadAllInProgress || observerPauseDepth > 0) return;
+      refreshAvailability();
+      // Keep sort sticky when the host re-renders or lazy-loads more rows.
+      if (!activeSortMode) return;
+      const analysis = analyzePage();
+      if (sortIntegrityIntact(analysis, activeSortMode)) return;
+      applySort(activeSortMode);
+    }, OBSERVER_DEBOUNCE_MS);
   }
 
   function startObserver() {
-    if (observer) return observer;
+    if (observer) {
+      resumeObserver();
+      return observer;
+    }
     observer = new MutationObserver((mutations) => {
+      if (loadAllInProgress) return;
       if (!document.getElementById(BUTTON_ID)) {
         scheduleRefresh();
         return;
@@ -281,7 +564,7 @@
       );
       if (siteMutation) scheduleRefresh();
     });
-    observer.observe(document.documentElement, { childList: true, subtree: true });
+    resumeObserver();
     return observer;
   }
 
@@ -296,6 +579,7 @@
     refreshAvailability();
     startObserver();
     loadPreferences();
+    watchPreferences();
   }
 
   if (chrome?.runtime?.onMessage) {
@@ -306,13 +590,20 @@
         return false;
       }
       if (message.type === "PRICESORTER_SORT" || message.type === "PRICESORTER_SORT_NOW") {
-        const mode = message.mode ?? core.SORT_MODES.ABSOLUTE_SAVING;
-        sendResponse({ ok: true, ...applySort(mode) });
-        return false;
+        const mode =
+          message.mode === core.SORT_MODES.ORIGINAL
+            ? core.SORT_MODES.ORIGINAL
+            : normalizeSavingSortMode(message.mode ?? preferredSortMode);
+        sortWithFullList(mode)
+          .then((result) => sendResponse({ ok: true, ...result }))
+          .catch(() => sendResponse({ ok: false, applied: false }));
+        return true;
       }
       if (message.type === "PRICESORTER_EXPORT_CSV") {
-        sendResponse({ ok: true, ...exportCsv() });
-        return false;
+        exportCsvWithFullList()
+          .then((result) => sendResponse({ ok: true, ...result }))
+          .catch(() => sendResponse({ ok: false, exported: false }));
+        return true;
       }
       if (message.type === "PRICESORTER_SET_PAGE_CONTROL") {
         sendResponse({ ok: true, enabled: setPageControl(message.enabled) });
@@ -327,11 +618,14 @@
     applySort,
     ensureSortButton,
     exportCsv,
+    exportCsvWithFullList,
     formatSavingsPercent,
     init,
+    loadAllWatchlistRows,
     parsePriceToken,
     refreshAvailability,
     setPageControl,
+    sortWithFullList,
     startObserver,
     stopObserver,
   });

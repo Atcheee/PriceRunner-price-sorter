@@ -4,7 +4,7 @@ Fokuserad bevakningsassistent för PriceRunner. Tillägget sorterar, analyserar 
 
 ## Funktioner
 
-- Sortering efter störst besparing, högst rabatt, lägst aktuellt pris eller lägst jämförpris när det finns.
+- Sortering efter högst rabatt, störst besparing, lägst aktuellt pris eller lägst jämförpris när det finns.
 - Stabil återställning till listans ursprungliga ordning.
 - Otillgängliga, saknade och oläsbara rader döljs aldrig. De grupperas tydligt längst ned.
 - Parserstatus med antal produkter, läsbara priser, otillgängliga produkter, största besparing och varningar.

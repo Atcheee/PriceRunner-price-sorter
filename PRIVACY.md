@@ -6,7 +6,7 @@ PriceRunner Extension 2.0 behandlar produktnamn, produktlänkar, priser och lage
 
 All behandling sker lokalt i användarens webbläsare. Tillägget skickar inte sidinnehåll, webbhistorik, identifierare, analysdata eller telemetri till utvecklaren eller tredje part. Inga annonser eller affiliate-länkar injiceras och inga personuppgifter säljs.
 
-`chrome.storage.local` används endast för UI-preferenser: valt sorteringsläge och om kontrollen på sidan ska visas. Användaren kan radera dessa uppgifter genom att avinstallera tillägget eller rensa tilläggets lokala lagring.
+`chrome.storage.local` används endast för UI-preferenser: valt sorteringsläge, utseende (ljust/mörkt/system) och om kontrollen på sidan ska visas. Användaren kan radera dessa uppgifter genom att avinstallera tillägget eller rensa tilläggets lokala lagring.
 
 CSV-export skapas på användarens enhet efter en uttrycklig knapptryckning. Filen överförs inte av tillägget.
 

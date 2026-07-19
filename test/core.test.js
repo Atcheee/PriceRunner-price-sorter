@@ -107,6 +107,22 @@ test("compareProducts keeps ties stable and puts unavailable rows last", () => {
   );
 });
 
+test("compareProducts percentage mode prefers higher discount over higher kr saving", () => {
+  const products = [
+    { name: "bigKr", absoluteSaving: 1000, percentageSaving: 10, stockState: "available", originalIndex: 0 },
+    { name: "bigPct", absoluteSaving: 500, percentageSaving: 50, stockState: "available", originalIndex: 1 },
+  ];
+
+  assert.deepEqual(
+    [...products].sort(compareProducts(SORT_MODES.ABSOLUTE_SAVING)).map(({ name }) => name),
+    ["bigKr", "bigPct"],
+  );
+  assert.deepEqual(
+    [...products].sort(compareProducts(SORT_MODES.PERCENTAGE_SAVING)).map(({ name }) => name),
+    ["bigPct", "bigKr"],
+  );
+});
+
 test("current and unit price modes sort low-to-high", () => {
   const products = [
     { name: "A", currentPrice: 200, unitPrice: 20, stockState: "available", originalIndex: 0 },

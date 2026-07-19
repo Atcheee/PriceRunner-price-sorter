@@ -23,8 +23,10 @@ export const copy = {
   },
   sort: {
     title: "Sortering och export",
-    description: "Välj ordning. Ogiltiga rader döljs aldrig.",
+    description: "Byt mellan sparat belopp och rabatt. Ogiltiga rader döljs aldrig.",
     modeLabel: "Sorteringsläge",
+    kr: "kr",
+    percent: "%",
     apply: "Sortera",
     restore: "Återställ",
     export: "Exportera CSV",
@@ -32,6 +34,12 @@ export const copy = {
   privacy: {
     title: "Integritet och inställningar",
     description: "Endast lokala funktioner och lokala preferenser.",
+    theme: "Utseende",
+    themeLabel: "Färgläge",
+    themeDescription: "Ljust, mörkt eller följ systemets preferens.",
+    themeLight: "Ljust",
+    themeDark: "Mörkt",
+    themeSystem: "System",
     pageControl: "Visa knapp på sidan",
     pageControlDescription: "Visas bara när en bevakningslista känns igen.",
     localOnly: "Produktdata, priser, sortering och CSV lämnar aldrig webbläsaren. Ingen analys, reklam eller affiliate-data skickas.",
@@ -47,33 +55,33 @@ export const copy = {
     reload: "Ladda om PriceRunner-sidan och försök igen.",
     controlShown: "Sidknappen visas på stödda listor.",
     controlHidden: "Sidknappen är dold.",
+    themeLight: "Ljust läge aktiverat.",
+    themeDark: "Mörkt läge aktiverat.",
+    themeSystem: "Följer systemets färgläge.",
   },
 };
 
+export const SAVING_SORT_MODES = Object.freeze({
+  PERCENTAGE: "percentageSaving",
+  ABSOLUTE: "absoluteSaving",
+});
+
 export const sortModes = [
   {
-    value: "absoluteSaving",
-    label: "Störst besparing",
-    description: "Startpris minus pris nu, högst belopp först.",
-  },
-  {
-    value: "percentageSaving",
+    value: SAVING_SORT_MODES.PERCENTAGE,
+    shortLabel: "%",
     label: "Högst rabatt",
-    description: "(Startpris minus pris nu) delat med startpris.",
+    description: "Sorterar efter sparad procent: (startpris − pris nu) / startpris.",
   },
   {
-    value: "currentPrice",
-    label: "Lägst pris nu",
-    description: "Lägsta läsbara aktuella pris först.",
-  },
-  {
-    value: "unitPrice",
-    label: "Lägst jämförpris",
-    description: "Lägsta läsbara enhetspris först när det finns.",
-  },
-  {
-    value: "original",
-    label: "Ursprunglig ordning",
-    description: "Återställer ordningen från när listan först lästes.",
+    value: SAVING_SORT_MODES.ABSOLUTE,
+    shortLabel: "kr",
+    label: "Störst besparing",
+    description: "Sorterar efter sparat belopp: startpris − pris nu, högst först.",
   },
 ];
+
+export function normalizeSavingSortMode(mode) {
+  if (mode === SAVING_SORT_MODES.ABSOLUTE) return SAVING_SORT_MODES.ABSOLUTE;
+  return SAVING_SORT_MODES.PERCENTAGE;
+}

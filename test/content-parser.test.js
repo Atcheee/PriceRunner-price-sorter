@@ -70,8 +70,8 @@ test("parsePriceToken distinguishes unreadable text from inactive values", () =>
 });
 
 test("existing savings percentage copy describes decreases and increases", () => {
-  assert.equal(formatSavingsPercent(1000, 750), "Spar 25.0%");
-  assert.equal(formatSavingsPercent(5658, 4999), "Spar 11.6%");
-  assert.equal(formatSavingsPercent(1000, 1250), "Ökat 25.0%");
+  assert.equal(formatSavingsPercent(1000, 750), "Spar 250 kr, 25.0%");
+  assert.equal(formatSavingsPercent(5658, 4999), "Spar 659 kr, 11.6%");
+  assert.equal(formatSavingsPercent(1000, 1250), "Ökat 250 kr, 25.0%");
   assert.equal(formatSavingsPercent(0, 0), null);
 });

@@ -43,7 +43,9 @@
   }
 
   function directCells(row) {
-    return Array.from(row?.children ?? []).filter((element) => elementText(element));
+    return Array.from(row?.children ?? []).filter(
+      (element) => elementText(element) && !element.matches?.("[data-pricesorter-owned]"),
+    );
   }
 
   function includesLabel(text, labels) {
@@ -117,8 +119,11 @@
 
   function firstMatchingElement(root, selectors) {
     for (const selector of selectors) {
-      const match = root.querySelector(selector);
-      if (match) return match;
+      const matches = root.querySelectorAll(selector);
+      for (const match of matches) {
+        if (match.closest?.("[data-pricesorter-owned]")) continue;
+        return match;
+      }
     }
     return null;
   }
