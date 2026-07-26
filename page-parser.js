@@ -256,6 +256,24 @@
       };
     }
 
+    let pathname = "";
+    try {
+      pathname = new URL(
+        locationLike?.href ?? "",
+        "https://www.pricerunner.se/",
+      ).pathname;
+    } catch (_error) {
+      pathname = "";
+    }
+    if (!/\/(?:profile\/alerts|watchlist)\/?$/i.test(pathname)) {
+      return {
+        supported: false,
+        reason: "unsupported-route",
+        entries: [],
+        summary: core.summarizeProducts([], { supported: false }),
+      };
+    }
+
     const entries = selected.rows.map((row, originalIndex) => {
       const snapshot = snapshotRow(row, selected.header, originalIndex, locationLike);
       const product = core.parseProductRow(snapshot);

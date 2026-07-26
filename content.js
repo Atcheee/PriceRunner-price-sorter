@@ -9,7 +9,14 @@
   if (!core || !pageParser) throw new Error("PriceRunner parser modules failed to load");
 
   const BUTTON_ID = "pricesorter-sort-button";
+  const THEME_BUTTON_ID = "pricesorter-theme-button";
   const CONTROL_CLASS = "pricesorter-control";
+  const DARK_THEME_CLASS = "pricesorter-dark-theme";
+  const THEME_MODES = Object.freeze({
+    LIGHT: "light",
+    DARK: "dark",
+    SYSTEM: "system",
+  });
   const BUTTON_TEXT_BY_MODE = Object.freeze({
     [core.SORT_MODES.PERCENTAGE_SAVING]: "Sortera efter rabatt",
     [core.SORT_MODES.ABSOLUTE_SAVING]: "Sortera efter besparing",
@@ -41,10 +48,60 @@
   let activeSortMode = null;
   let lastSortedCount = 0;
   let loadAllInProgress = false;
+  let preferredTheme = THEME_MODES.SYSTEM;
+  const themeMediaQuery = globalThis.matchMedia?.("(prefers-color-scheme: dark)") ?? null;
 
   function normalizeSavingSortMode(mode) {
     if (mode === core.SORT_MODES.ABSOLUTE_SAVING) return core.SORT_MODES.ABSOLUTE_SAVING;
     return core.SORT_MODES.PERCENTAGE_SAVING;
+  }
+
+  function normalizeTheme(mode) {
+    if (mode === THEME_MODES.LIGHT || mode === THEME_MODES.DARK) return mode;
+    return THEME_MODES.SYSTEM;
+  }
+
+  function resolveIsDark(mode = preferredTheme) {
+    const normalized = normalizeTheme(mode);
+    if (normalized === THEME_MODES.DARK) return true;
+    if (normalized === THEME_MODES.LIGHT) return false;
+    return themeMediaQuery?.matches === true;
+  }
+
+  function syncThemeButtonLabel() {
+    const button = document.getElementById(THEME_BUTTON_ID);
+    if (!button) return;
+    const isDark = resolveIsDark();
+    button.textContent = isDark ? "Ljust läge" : "Mörkt läge";
+    button.setAttribute(
+      "aria-label",
+      isDark
+        ? "PriceRunner Extension: stäng av mörkt läge"
+        : "PriceRunner Extension: aktivera mörkt läge",
+    );
+    button.setAttribute("aria-pressed", String(isDark));
+  }
+
+  function applyPageTheme(mode) {
+    preferredTheme = normalizeTheme(mode);
+    const isDark = resolveIsDark(preferredTheme);
+    const root = document.documentElement;
+    root.classList.toggle(DARK_THEME_CLASS, isDark);
+    root.dataset.pricesorterTheme = isDark ? THEME_MODES.DARK : THEME_MODES.LIGHT;
+    root.style.colorScheme = isDark ? "dark" : "light";
+    syncThemeButtonLabel();
+    return { mode: preferredTheme, isDark };
+  }
+
+  async function togglePageTheme() {
+    const nextTheme = resolveIsDark() ? THEME_MODES.LIGHT : THEME_MODES.DARK;
+    const result = applyPageTheme(nextTheme);
+    try {
+      await chrome?.storage?.local?.set?.({ theme: nextTheme });
+    } catch (_error) {
+      // Theme still applies for the current page when persistence is unavailable.
+    }
+    return result;
   }
 
   function buttonTextForMode(mode = preferredSortMode) {
@@ -461,23 +518,41 @@
     }, 1400);
   }
 
-  function removeSortControl() {
-    const button = document.getElementById(BUTTON_ID);
-    const control = button?.closest(`.${CONTROL_CLASS}`);
-    (control ?? button)?.remove();
+  function removePageControl() {
+    document.querySelector(`.${CONTROL_CLASS}`)?.remove();
   }
 
-  function ensureSortButton(anchor = null) {
+  function ensureThemeControl() {
+    let control = document.querySelector(`.${CONTROL_CLASS}`);
+    if (!control) {
+      control = document.createElement("div");
+      control.className = CONTROL_CLASS;
+      control.setAttribute("data-pricesorter-owned", "true");
+      control.setAttribute("data-pricesorter-control", "true");
+      document.body.appendChild(control);
+    }
+
+    let themeButton = document.getElementById(THEME_BUTTON_ID);
+    if (!themeButton) {
+      themeButton = document.createElement("button");
+      themeButton.id = THEME_BUTTON_ID;
+      themeButton.type = "button";
+      themeButton.setAttribute("data-pricesorter-owned", "true");
+      themeButton.addEventListener("click", togglePageTheme);
+      control.prepend(themeButton);
+    }
+    syncThemeButtonLabel();
+    return control;
+  }
+
+  function ensureSortButton() {
     let button = document.getElementById(BUTTON_ID);
     if (button) {
       syncSortButtonLabel(preferredSortMode);
       return button;
     }
 
-    const control = document.createElement("div");
-    control.className = CONTROL_CLASS;
-    control.setAttribute("data-pricesorter-owned", "true");
-    control.setAttribute("data-pricesorter-control", "true");
+    const control = ensureThemeControl();
     button = document.createElement("button");
     button.id = BUTTON_ID;
     button.type = "button";
@@ -486,15 +561,19 @@
     button.textContent = buttonTextForMode(preferredSortMode);
     button.addEventListener("click", handleSortClick);
     control.appendChild(button);
-    if (anchor?.parentElement) anchor.parentElement.insertBefore(control, anchor);
-    else document.body.appendChild(control);
     return button;
   }
 
   function refreshAvailability() {
     const analysis = analyzePage();
-    if (analysis.supported && pageControlEnabled) ensureSortButton(analysis.container);
-    else removeSortControl();
+    if (!pageControlEnabled) {
+      removePageControl();
+      return analysis;
+    }
+
+    ensureThemeControl();
+    if (analysis.supported) ensureSortButton();
+    else document.getElementById(BUTTON_ID)?.remove();
     return analysis;
   }
 
@@ -510,8 +589,10 @@
       const preferences = await chrome.storage.local.get({
         showPageControl: true,
         sortMode: core.SORT_MODES.PERCENTAGE_SAVING,
+        theme: THEME_MODES.SYSTEM,
       });
       preferredSortMode = normalizeSavingSortMode(preferences.sortMode);
+      applyPageTheme(preferences.theme);
       setPageControl(preferences.showPageControl);
       syncSortButtonLabel(preferredSortMode);
     } catch (_error) {
@@ -529,6 +610,9 @@
       }
       if (Object.hasOwn(changes, "showPageControl")) {
         setPageControl(changes.showPageControl?.newValue !== false);
+      }
+      if (Object.hasOwn(changes, "theme")) {
+        applyPageTheme(changes.theme?.newValue);
       }
     });
   }
@@ -553,7 +637,7 @@
     }
     observer = new MutationObserver((mutations) => {
       if (loadAllInProgress) return;
-      if (!document.getElementById(BUTTON_ID)) {
+      if (!document.querySelector(`.${CONTROL_CLASS}`)) {
         scheduleRefresh();
         return;
       }
@@ -576,6 +660,9 @@
   }
 
   function init() {
+    themeMediaQuery?.addEventListener?.("change", () => {
+      if (preferredTheme === THEME_MODES.SYSTEM) applyPageTheme(preferredTheme);
+    });
     refreshAvailability();
     startObserver();
     loadPreferences();
@@ -609,14 +696,20 @@
         sendResponse({ ok: true, enabled: setPageControl(message.enabled) });
         return false;
       }
+      if (message.type === "PRICESORTER_SET_THEME") {
+        sendResponse({ ok: true, ...applyPageTheme(message.theme) });
+        return false;
+      }
       return false;
     });
   }
 
   const api = Object.freeze({
     analyzePage,
+    applyPageTheme,
     applySort,
     ensureSortButton,
+    ensureThemeControl,
     exportCsv,
     exportCsvWithFullList,
     formatSavingsPercent,
@@ -628,6 +721,7 @@
     sortWithFullList,
     startObserver,
     stopObserver,
+    togglePageTheme,
   });
   globalThis.PriceRunnerContent = api;
 

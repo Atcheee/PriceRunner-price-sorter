@@ -36,7 +36,7 @@ export const copy = {
     description: "Endast lokala funktioner och lokala preferenser.",
     theme: "Utseende",
     themeLabel: "Färgläge",
-    themeDescription: "Ljust, mörkt eller följ systemets preferens.",
+    themeDescription: "Styr både PriceRunner-sidan och tillägget. Välj ljust, mörkt eller system.",
     themeLight: "Ljust",
     themeDark: "Mörkt",
     themeSystem: "System",
@@ -55,9 +55,9 @@ export const copy = {
     reload: "Ladda om PriceRunner-sidan och försök igen.",
     controlShown: "Sidknappen visas på stödda listor.",
     controlHidden: "Sidknappen är dold.",
-    themeLight: "Ljust läge aktiverat.",
-    themeDark: "Mörkt läge aktiverat.",
-    themeSystem: "Följer systemets färgläge.",
+    themeLight: "Ljust läge aktiverat på sidan och i tillägget.",
+    themeDark: "Mörkt läge aktiverat på sidan och i tillägget.",
+    themeSystem: "Sidan och tillägget följer systemets färgläge.",
   },
 };
 

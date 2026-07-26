@@ -11,6 +11,7 @@ Fokuserad bevakningsassistent för PriceRunner. Tillägget sorterar, analyserar 
 - Lokal CSV-export med produktnamn, URL, startpris, aktuellt pris, besparing, rabatt, lagerstatus och tidpunkt.
 - Svensk förstahandstext med copy samlad i `src/i18n.js` för framtida språk.
 - Tangentbordsstöd, synliga fokuslägen, reducerad rörelse och forced-colors-stöd.
+- Växling mellan ljust, mörkt och systemstyrt färgläge för både PriceRunner-sidan och popupen.
 
 Besparing beräknas som `startpris - pris nu`. Rabatt i procent beräknas som `(startpris - pris nu) / startpris × 100`.
 
@@ -31,7 +32,7 @@ Tillägget visar inte ett lyckat resultat när sidstrukturen inte känns igen.
 
 Manifest V3 använder bara:
 
-- `storage`: sparar lokala preferenser för sorteringsläge och om sidknappen ska visas.
+- `storage`: sparar lokala preferenser för sorteringsläge, färgläge och om sidknappen ska visas.
 - Statiska content-script-matchningar för de uttryckligen stödda PriceRunner-domänerna nedan. Ingen `<all_urls>`, historik, cookies, webRequest, downloads eller fjärrkod används.
 
 Popupen behöver inte `tabs`-behörigheten. Den skickar bara meddelanden till den aktiva fliken efter att användaren öppnat popupen.

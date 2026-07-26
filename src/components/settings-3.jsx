@@ -280,6 +280,11 @@ export function Settings3({ initialTheme = THEME_MODES.SYSTEM }) {
     setTheme(nextTheme);
     applyTheme(nextTheme);
     await globalThis.chrome.storage.local.set({ theme: nextTheme });
+    try {
+      await sendToTab(tabId, { type: "PRICESORTER_SET_THEME", theme: nextTheme });
+    } catch (_error) {
+      // Saved preference applies when the next supported PriceRunner page loads.
+    }
     setAnnouncement(THEME_ANNOUNCEMENTS[nextTheme]);
   }
 

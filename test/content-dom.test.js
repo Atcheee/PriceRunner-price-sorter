@@ -107,6 +107,42 @@ test("sort button injection is idempotent", () => {
   assert.equal(first.supported, true);
   assert.equal(firstButton, secondButton);
   assert.equal(document.querySelectorAll("#pricesorter-sort-button").length, 1);
+  assert.equal(document.querySelectorAll("#pricesorter-theme-button").length, 1);
+  dom.window.close();
+});
+
+test("theme control remains available when sorting is unsupported", () => {
+  const dom = createExtensionDom("<!doctype html><body><main>Vanlig sida</main></body>");
+  const { document, PriceRunnerContent } = dom.window;
+
+  const result = PriceRunnerContent.refreshAvailability();
+
+  assert.equal(result.supported, false);
+  assert.ok(document.getElementById("pricesorter-theme-button"));
+  assert.equal(document.getElementById("pricesorter-sort-button"), null);
+  dom.window.close();
+});
+
+test("page theme toggles dark mode without changing watchlist content", async () => {
+  const html = fs.readFileSync(path.join(__dirname, "fixtures", "normal.html"), "utf8");
+  const dom = createExtensionDom(html);
+  const { document, PriceRunnerContent } = dom.window;
+
+  PriceRunnerContent.refreshAvailability();
+  const beforeRows = document.querySelectorAll("[data-product-row]").length;
+  const dark = PriceRunnerContent.applyPageTheme("dark");
+
+  assert.equal(dark.isDark, true);
+  assert.equal(document.documentElement.classList.contains("pricesorter-dark-theme"), true);
+  assert.equal(document.documentElement.dataset.pricesorterTheme, "dark");
+  assert.equal(document.getElementById("pricesorter-theme-button")?.textContent, "Ljust läge");
+  assert.equal(document.querySelectorAll("[data-product-row]").length, beforeRows);
+
+  const light = await PriceRunnerContent.togglePageTheme();
+  assert.equal(light.isDark, false);
+  assert.equal(document.documentElement.classList.contains("pricesorter-dark-theme"), false);
+  assert.equal(document.documentElement.dataset.pricesorterTheme, "light");
+  assert.equal(document.getElementById("pricesorter-theme-button")?.textContent, "Mörkt läge");
   dom.window.close();
 });
 

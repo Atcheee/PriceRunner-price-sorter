@@ -6,7 +6,7 @@
  * why the sort button was rendering as a low-contrast white chip on PriceRunner.
  */
 .pricesorter-control {
-  @apply fixed top-1/2 right-4 z-[2147483646] flex -translate-y-1/2;
+  @apply fixed top-1/2 right-4 z-[2147483646] flex -translate-y-1/2 flex-col items-end gap-2;
 }
 
 #pricesorter-sort-button {
@@ -15,6 +15,163 @@
 
 #pricesorter-sort-button.pricesorter-flash {
   @apply border-emerald-800 bg-emerald-800 hover:bg-emerald-800;
+}
+
+#pricesorter-theme-button {
+  @apply inline-flex min-h-10 cursor-pointer items-center justify-center rounded-xl border border-slate-300 bg-white px-3.5 py-2 font-sans text-sm font-bold tracking-wide text-slate-950 shadow-lg shadow-slate-950/15 transition-[background-color,border-color,box-shadow,transform] duration-150 hover:bg-slate-100 hover:shadow-xl focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-700 active:scale-[0.98];
+}
+
+/*
+ * PriceRunner exposes semantic color tokens on the root element. Override
+ * those instead of flattening every div/button; native components then keep
+ * their own layout, elevation, hover, and open-state behavior.
+ */
+html.pricesorter-dark-theme {
+  --header-background: #101014 !important;
+  --headerBackground: #101014 !important;
+  --header-logo: #fafafa !important;
+  --headerLogo: #fafafa !important;
+  --header-icon: #fafafa !important;
+  --headerIcon: #fafafa !important;
+  --header-link: #f4f4f5 !important;
+  --headerLink: #f4f4f5 !important;
+  --header-link-active: #fafafa !important;
+  --headerLinkActive: #fafafa !important;
+  --header-link-hover: #d4d4d8 !important;
+  --headerLinkHover: #d4d4d8 !important;
+  --header-border: #303038 !important;
+  --headerBorder: #303038 !important;
+
+  --background-page: #101014 !important;
+  --backgroundPage: #101014 !important;
+  --background-primary: #101014 !important;
+  --backgroundPrimary: #101014 !important;
+  --backgroundContentPrimary: #18181d !important;
+  --background-content-primary: #18181d !important;
+  --content0: #18181d !important;
+  --backgroundContentPrimaryHover: #202027 !important;
+  --background-content-primary-hover: #202027 !important;
+  --background-primary-hover: #202027 !important;
+  --backgroundPrimaryHover: #202027 !important;
+  --background-content-secondary: #202027 !important;
+  --backgroundContentSecondary: #202027 !important;
+  --background-secondary: #202027 !important;
+  --backgroundSecondary: #202027 !important;
+  --backgroundContentSecondaryHover: #292931 !important;
+  --background-content-secondary-hover: #292931 !important;
+  --backgroundSecondaryHover: #292931 !important;
+  --background-secondary-hover: #292931 !important;
+  --backgroundTertiary: #3a3a44 !important;
+  --background-tertiary: #3a3a44 !important;
+  --colors-bg-neutral: #27272e !important;
+
+  --buttonBackgroundSecondary: #202027 !important;
+  --button-background-secondary: #202027 !important;
+  --buttonBackgroundSecondaryHover: #292931 !important;
+  --button-background-secondary-hover: #292931 !important;
+  --inputBackground: #202027 !important;
+  --input-background: #202027 !important;
+  --inputBackgroundDisabled: #292931 !important;
+  --input-background-disabled: #292931 !important;
+  --input-decoration: #52525b !important;
+  --inputDecorationActive: #fafafa !important;
+  --input-decoration-active: #fafafa !important;
+  --input-decoration-secondary: #3a3a44 !important;
+  --inputDecorationSecondary: #3a3a44 !important;
+  --input-decoration-secondary-active: #52525b !important;
+  --inputDecorationSecondaryActive: #52525b !important;
+
+  --colors-text-default: #f4f4f5 !important;
+  --colors-text-body: #e4e4e7 !important;
+  --textContentPrimary: #f4f4f5 !important;
+  --text-content-primary: #f4f4f5 !important;
+  --text-primary: #f4f4f5 !important;
+  --textPrimary: #f4f4f5 !important;
+  --headingContent: #fafafa !important;
+  --text-secondary: #b4b4bd !important;
+  --text-content-secondary: #b4b4bd !important;
+  --textSecondary: #b4b4bd !important;
+  --textContentSecondary: #b4b4bd !important;
+  --text-tertiary: #a1a1aa !important;
+  --textTertiary: #a1a1aa !important;
+  --colors-text-subtle: #b4b4bd !important;
+  --colors-text-disabled: #8b8b95 !important;
+  --colors-text-placeholder: #a1a1aa !important;
+  --textDisabled: #71717a !important;
+  --input-placeholder: #a1a1aa !important;
+  --colors-text-link: #c4b5fd !important;
+
+  --border: #303038 !important;
+  --border60: #52525b !important;
+  --border100: #52525b !important;
+  --colors-border-neutral: #3a3a44 !important;
+  --colors-border-default: #303038 !important;
+  --backgroundLoading1: #202027 !important;
+  --background-loading1: #202027 !important;
+  --backgroundLoading2: #292931 !important;
+  --background-loading2: #292931 !important;
+  --frame-background-hover: #202027 !important;
+  --frameBackgroundHover: #202027 !important;
+  --frame-background-pressed: #292931 !important;
+  --frameBackgroundPressed: #292931 !important;
+  --overlay-content: rgb(255 255 255 / 6%) !important;
+
+  background-color: #101014 !important;
+  color: #f4f4f5 !important;
+  color-scheme: dark !important;
+}
+
+html.pricesorter-dark-theme body {
+  background-color: var(--background-page) !important;
+  color: var(--colors-text-default) !important;
+}
+
+html.pricesorter-dark-theme body
+  :where(input, textarea, select, [role="searchbox"]) {
+  color: var(--colors-text-default) !important;
+}
+
+html.pricesorter-dark-theme body
+  :where([role="dialog"], [role="menu"], [role="listbox"]) {
+  background-color: var(--backgroundContentPrimary) !important;
+  border-color: var(--colors-border-default) !important;
+  color: var(--colors-text-default) !important;
+}
+
+/*
+ * PriceRunner renders search results inside an absolutely positioned child of
+ * the search form. Give it an explicit elevated dark surface because this
+ * host component does not consistently consume the semantic background token.
+ */
+html.pricesorter-dark-theme body form:has(#search)
+  span:has(> #search) {
+  background-color: #202027 !important;
+  border-color: #3a3a44 !important;
+}
+
+html.pricesorter-dark-theme body form:has(#search)
+  > div:has(a[href*="/results"], a[href*="/pl/"], a[href*="/cl/"]) {
+  background-color: #18181d !important;
+  border: 1px solid #3a3a44 !important;
+  box-shadow: 0 18px 48px rgb(0 0 0 / 55%) !important;
+}
+
+html.pricesorter-dark-theme body input::placeholder,
+html.pricesorter-dark-theme body textarea::placeholder {
+  color: var(--input-placeholder) !important;
+  opacity: 1;
+}
+
+html.pricesorter-dark-theme body a[href*="/pl/"] img {
+  background-color: #f4f4f5;
+  border-radius: 0.25rem;
+}
+
+html.pricesorter-dark-theme #pricesorter-theme-button {
+  border-color: #52525b;
+  background-color: #27272a;
+  color: #fafafa;
+  box-shadow: 0 10px 18px rgb(0 0 0 / 35%);
 }
 
 .pricesorter-invalid-group-label {
@@ -30,10 +187,15 @@
   #pricesorter-sort-button {
     @apply transition-none active:scale-100;
   }
+
+  #pricesorter-theme-button {
+    @apply transition-none active:scale-100;
+  }
 }
 
 @media (forced-colors: active) {
   #pricesorter-sort-button,
+  #pricesorter-theme-button,
   .pricesorter-invalid-group-label {
     border: 1px solid ButtonText;
     forced-color-adjust: auto;

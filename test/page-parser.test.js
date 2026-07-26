@@ -72,6 +72,21 @@ test("unrelated page returns detectable unsupported state", () => {
   assert.equal(result.summary.state, "unsupported");
 });
 
+test("product grids on non-watchlist routes never become supported", () => {
+  const dom = new JSDOM(`<!doctype html><body>
+    <main id="content-below-header">
+      <div><span>Produkt</span><span>Startpris</span><span>Pris nu</span></div>
+      <div data-product-row><a href="/pl/1-a">Produkt A</a><span>1 000 kr</span><span>900 kr</span></div>
+      <div data-product-row><a href="/pl/1-b">Produkt B</a><span>2 000 kr</span><span>1 800 kr</span></div>
+    </main>
+  </body>`, { url: "https://www.pricerunner.se/" });
+  const result = analyzeDocument(dom.window.document, dom.window.location);
+
+  assert.equal(result.supported, false);
+  assert.equal(result.reason, "unsupported-route");
+  assert.equal(result.entries.length, 0);
+});
+
 test("row snapshots accept unit prices but reject unsafe external URLs", () => {
   const dom = new JSDOM(`<!doctype html><body>
     <div data-testid="watchlist">
