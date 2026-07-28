@@ -44,8 +44,9 @@ html.pricesorter-dark-theme {
 
   --background-page: #101014 !important;
   --backgroundPage: #101014 !important;
-  --background-primary: #101014 !important;
-  --backgroundPrimary: #101014 !important;
+  /* Elevated surface — offer cards (Card-root) consume --background-primary. */
+  --background-primary: #18181d !important;
+  --backgroundPrimary: #18181d !important;
   --backgroundContentPrimary: #18181d !important;
   --background-content-primary: #18181d !important;
   --content0: #18181d !important;
@@ -63,7 +64,126 @@ html.pricesorter-dark-theme {
   --background-secondary-hover: #292931 !important;
   --backgroundTertiary: #3a3a44 !important;
   --background-tertiary: #3a3a44 !important;
+
+  /* Klarna/Fabric surface tokens used by newer listing chrome. */
+  --colors-bg-page: #101014 !important;
+  --colors-bg-plain: #18181d !important;
+  --colors-bg-container: #18181d !important;
+  --colors-bg-subtle: #202027 !important;
   --colors-bg-neutral: #27272e !important;
+  --colors-bg-inverse: #f4f4f5 !important;
+  --colors-bg-positive: #046234 !important;
+  --colors-bg-positive-subtle: #02351f !important;
+  --colors-bg-negative: #931414 !important;
+  --colors-bg-negative-subtle: #550c0c !important;
+  --colors-bg-warning: #dfa200 !important;
+  --colors-bg-warning-subtle: #664600 !important;
+  --colors-bg-accent: #582fb4 !important;
+  --colors-bg-accent-subtle: #2f1f5a !important;
+
+  /* Status label text/badge fills ("Lägst pris", sale ribbons, etc.). */
+  --colors-text-positive: #8aefb1 !important;
+  --colors-text-positive-heading: #54d98d !important;
+  --colors-text-negative: #ffb8b8 !important;
+  --colors-text-negative-heading: #f55858 !important;
+  --colors-text-warning: #ffd987 !important;
+  --colors-text-warning-heading: #fbc64d !important;
+  --colors-badge-positive: #046234 !important;
+  --colors-badge-positive-inverse: #8aefb1 !important;
+  --colors-badge-negative: #721010 !important;
+  --colors-badge-negative-inverse: #ff8686 !important;
+  --colors-badge-warning: #885f00 !important;
+  --colors-badge-warning-inverse: #ffd987 !important;
+  --colors-badge-pop: #5a6f1a !important;
+  --colors-badge-strong: #fafafa !important;
+
+  /* Legacy green/brand ramps still referenced by offer chrome. */
+  --green10: #02351f !important;
+  --green20: #014822 !important;
+  /*
+   * Ghost Button labels ("Redigera bevakning", "Jämför") use textColor "brand"
+   * (CSS --brand / --brand60). Keep mid-ramp brand tokens light for readable
+   * ghost text; leave brand90/100 dark so filled brand CTAs keep contrast.
+   */
+  --brand: #d4c4fc !important;
+  --brand10: #2f1f5a !important;
+  --brand20: #3d2a70 !important;
+  --brand40: #b594ff !important;
+  --brand50: #c4b5fd !important;
+  --brand60: #d4c4fc !important;
+  --brand80: #e4e0f7 !important;
+  --brand90: #3d2a70 !important;
+  --brand100: #1a1230 !important;
+  --supportPositive10: #02351f !important;
+  --support-positive10: #02351f !important;
+  --supportPositive20: #014822 !important;
+  --support-positive20: #014822 !important;
+  --ribbonSaleBackground: #550c0c !important;
+  --ribbon-sale-background: #550c0c !important;
+  --saleBackground: #550c0c !important;
+  --sale-background: #550c0c !important;
+
+  /* Grayscale ramp — low steps are surfaces; high steps are foregrounds. */
+  --grayscale0: #18181d !important;
+  --grayscale10: #202027 !important;
+  --grayscale20: #292931 !important;
+  --grayscale30: #3a3a44 !important;
+  --grayscale40: #52525b !important;
+  --grayscale50: #71717a !important;
+  --grayscale60: #a1a1aa !important;
+  --grayscale80: #d4d4d8 !important;
+  --grayscale90: #e4e4e7 !important;
+  --grayscale100: #fafafa !important;
+  --gray: #202027 !important;
+  --offwhite: #18181d !important;
+
+  /*
+   * Ghost action icons use --primary-action-base; labels use --brand (above).
+   * Footer body/links use --text-on-background. Keep those light.
+   *
+   * Caveat: the floating user-lists chip ("Mina produkter") also fills with
+   * --primary-action-base and paints its label with --text-on-background.
+   * Lightening both tokens collapses that chip to white-on-white — see the
+   * scoped override below for button[aria-expanded="false"]:has(> p).
+   *
+   * --background-inverse is NOT "light surface in dark mode". PriceRunner's
+   * ToggleButtons (size/period chips) use inverse as the selected FILL, which
+   * is dark (#0B051D) with light --text-inverse in the host light theme.
+   * Keeping that pair avoids white-on-white selected chips.
+   */
+  --primaryActionBase: #fafafa !important;
+  --primary-action-base: #fafafa !important;
+  --primaryActionHover: #e4e4e7 !important;
+  --primary-action-hover: #e4e4e7 !important;
+  --primaryActionActive: #f4f4f5 !important;
+  --primary-action-active: #f4f4f5 !important;
+  --linkPrimary: #f4f4f5 !important;
+  --link-primary: #f4f4f5 !important;
+  --textOnBackground: #fafafa !important;
+  --text-on-background: #fafafa !important;
+  --textInverse: #fafafa !important;
+  --text-inverse: #fafafa !important;
+  --text-primary-inverse: #fafafa !important;
+  --textPrimaryInverse: #fafafa !important;
+  --colors-btn-primary: #fafafa !important;
+  --colors-btn-secondary: #3a3a44 !important;
+  --colors-text-inverse: #101014 !important;
+  --background-inverse: #27272a !important;
+  --backgroundInverse: #27272a !important;
+
+  /* Footer is always a dark brand surface; force its semantic tokens light. */
+  --footer-background: #101014 !important;
+  --footerBackground: #101014 !important;
+  --footer-heading: #fafafa !important;
+  --footerHeading: #fafafa !important;
+  --footer-logo: #fafafa !important;
+  --footerLogo: #fafafa !important;
+  --footer-top-content-background: #101014 !important;
+  --footerTopContentBackground: #101014 !important;
+  --footer-top-content-heading: #fafafa !important;
+  --footerTopContentHeading: #fafafa !important;
+  --footer-top-content-text: #e4e4e7 !important;
+  --footerTopContentText: #e4e4e7 !important;
 
   --buttonBackgroundSecondary: #202027 !important;
   --button-background-secondary: #202027 !important;
@@ -95,13 +215,14 @@ html.pricesorter-dark-theme {
   --text-tertiary: #a1a1aa !important;
   --textTertiary: #a1a1aa !important;
   --colors-text-subtle: #b4b4bd !important;
-  --colors-text-disabled: #8b8b95 !important;
+  --colors-text-disabled: #a1a1aa !important;
   --colors-text-placeholder: #a1a1aa !important;
-  --textDisabled: #71717a !important;
+  --textDisabled: #a1a1aa !important;
   --input-placeholder: #a1a1aa !important;
   --colors-text-link: #c4b5fd !important;
 
   --border: #303038 !important;
+  --border20: #303038 !important;
   --border60: #52525b !important;
   --border100: #52525b !important;
   --colors-border-neutral: #3a3a44 !important;
@@ -126,6 +247,49 @@ html.pricesorter-dark-theme body {
   color: var(--colors-text-default) !important;
 }
 
+/*
+ * Klarna UI mounts .klarna-ui-DEFAULT-light on local subtrees and redefines
+ * --colors-bg-* there, which would otherwise keep offer/media surfaces white
+ * while inherited text tokens already flipped to light-on-dark.
+ */
+html.pricesorter-dark-theme .klarna-ui-DEFAULT-light,
+html.pricesorter-dark-theme .klarna-ui-DEFAULT-system {
+  --colors-bg-page: #101014 !important;
+  --colors-bg-plain: #18181d !important;
+  --colors-bg-container: #18181d !important;
+  --colors-bg-subtle: #202027 !important;
+  --colors-bg-neutral: #27272e !important;
+  --colors-bg-inverse: #f4f4f5 !important;
+  --colors-bg-positive: #046234 !important;
+  --colors-bg-positive-subtle: #02351f !important;
+  --colors-bg-negative: #931414 !important;
+  --colors-bg-negative-subtle: #550c0c !important;
+  --colors-bg-warning: #dfa200 !important;
+  --colors-bg-warning-subtle: #664600 !important;
+  --colors-bg-accent: #582fb4 !important;
+  --colors-bg-accent-subtle: #2f1f5a !important;
+  --colors-text-default: #f4f4f5 !important;
+  --colors-text-body: #e4e4e7 !important;
+  --colors-text-subtle: #b4b4bd !important;
+  --colors-text-disabled: #8b8b95 !important;
+  --colors-text-placeholder: #a1a1aa !important;
+  --colors-text-link: #c4b5fd !important;
+  --colors-text-positive: #8aefb1 !important;
+  --colors-text-positive-heading: #54d98d !important;
+  --colors-badge-positive: #046234 !important;
+  --colors-badge-positive-inverse: #8aefb1 !important;
+  --colors-badge-pop: #5a6f1a !important;
+  --colors-border-default: #303038 !important;
+  --colors-border-neutral: #3a3a44 !important;
+  --colors-border-active: #fafafa !important;
+}
+
+/* Belt-and-suspenders for Emotion offer cards that read --background-primary. */
+html.pricesorter-dark-theme [class*="Card-root"] {
+  background-color: var(--background-primary) !important;
+  color: var(--colors-text-default) !important;
+}
+
 html.pricesorter-dark-theme body
   :where(input, textarea, select, [role="searchbox"]) {
   color: var(--colors-text-default) !important;
@@ -136,6 +300,72 @@ html.pricesorter-dark-theme body
   background-color: var(--backgroundContentPrimary) !important;
   border-color: var(--colors-border-default) !important;
   color: var(--colors-text-default) !important;
+}
+
+/* Filter sheet primary CTA — keep label light on dark brand fills. */
+html.pricesorter-dark-theme body
+  :where([role="dialog"]) > * button:last-child,
+html.pricesorter-dark-theme body
+  :where([role="dialog"]) button[type="submit"] {
+  color: #fafafa !important;
+}
+
+/*
+ * Attribute / period chips are Emotion "Selector-button" spans beside a
+ * checkbox input. Selected = input:checked + span uses --background-inverse /
+ * --text-inverse; unselected uses --background-primary / --text-primary.
+ * Host styles set the `background` shorthand, so override that (not only
+ * background-color) or the inverse token still paints a white fill.
+ */
+html.pricesorter-dark-theme body [class*="Selector-button"] {
+  background: #18181d !important;
+  color: #f4f4f5 !important;
+  box-shadow: inset 0 0 0 1px #52525b !important;
+}
+
+html.pricesorter-dark-theme body
+  :where(
+    input:checked + [class*="Selector-button"],
+    [class*="Selector-input"]:checked + [class*="Selector-button"]
+  ) {
+  background: #3f3f46 !important;
+  color: #fafafa !important;
+  box-shadow: inset 0 0 0 1px #a1a1aa !important;
+}
+
+html.pricesorter-dark-theme body [class*="Selector-button"] :where(span, div, svg) {
+  color: inherit !important;
+  fill: currentColor;
+}
+
+/*
+ * Collapsed floating user-lists chip ("Mina produkter" / locale equivalents).
+ * Host: background = --primary-action-base, label/icon = --text-on-background.
+ * Only this control pairs those tokens as fill + foreground on one surface.
+ */
+html.pricesorter-dark-theme body button[aria-expanded="false"]:has(> p) {
+  background: #27272a !important;
+}
+
+html.pricesorter-dark-theme body button[aria-expanded="false"]:has(> p)
+  :where(p, [class*="Icon"], svg) {
+  color: #fafafa !important;
+  fill: currentColor;
+}
+
+html.pricesorter-dark-theme body footer,
+html.pricesorter-dark-theme body footer :where(a, p, span, li) {
+  color: var(--footer-top-content-text) !important;
+}
+
+html.pricesorter-dark-theme body footer
+  :where(h1, h2, h3, h4, h5, h6, strong) {
+  color: var(--footer-heading) !important;
+}
+
+html.pricesorter-dark-theme body footer svg {
+  color: var(--footer-logo) !important;
+  fill: currentColor;
 }
 
 /*
