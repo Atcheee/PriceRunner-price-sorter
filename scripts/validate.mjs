@@ -27,6 +27,7 @@ assert(
 
 const runtimeFiles = new Set([
   manifest.action.default_popup,
+  manifest.background?.service_worker,
   ...Object.values(manifest.icons ?? {}),
   ...Object.values(manifest.action.default_icon ?? {}),
 ]);
@@ -39,6 +40,7 @@ for (const relativeFile of runtimeFiles) {
 }
 
 const scannableFiles = [
+  "background.js",
   "core.js",
   "page-parser.js",
   "content.js",

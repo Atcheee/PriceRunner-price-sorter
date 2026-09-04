@@ -85,13 +85,34 @@ test("table dates do not inflate rendered savings percentages", () => {
   assert.equal(result.applied, true);
   assert.deepEqual(
     badges.map((badge) => badge.textContent.trim()),
-    ["(Spar 362 kr, 21.9%)", "(Spar 121 kr, 3.7%)"],
+    ["Spar 362 kr, 21.9%", "Spar 121 kr, 3.7%"],
   );
   assert.deepEqual(
     badges.map((badge) => badge.getAttribute("data-pricesorter-start")),
     ["1655", "3275"],
   );
   assert.ok(badges.every((badge) => badge.parentElement?.tagName === "TD"));
+  dom.window.close();
+});
+
+test("price direction badges distinguish increases from decreases", () => {
+  const dom = createExtensionDom(`<!doctype html><body>
+    <div data-testid="watchlist">
+      <div><span>Produkt</span><span>Startpris</span><span>Pris nu</span></div>
+      <div data-product-row><a href="/down">Down</a><span>1 000 kr</span><span>800 kr</span></div>
+      <div data-product-row><a href="/up">Up</a><span>1 000 kr</span><span>1 200 kr</span></div>
+    </div>
+  </body>`);
+  const { document, PriceRunnerContent } = dom.window;
+
+  PriceRunnerContent.applySort(PriceRunnerCore.SORT_MODES.PERCENTAGE_SAVING);
+  const down = document.querySelector('[data-price-direction="down"]');
+  const up = document.querySelector('[data-price-direction="up"]');
+
+  assert.equal(down?.textContent, "Spar 200 kr, 20.0%");
+  assert.equal(down?.classList.contains("pricesorter-savings-percent--down"), true);
+  assert.equal(up?.textContent, "Ökat 200 kr, 20.0%");
+  assert.equal(up?.classList.contains("pricesorter-savings-percent--up"), true);
   dom.window.close();
 });
 
@@ -342,5 +363,50 @@ test("sort after loadAll places highest percentage discount first across lazy ro
   assert.equal(loadResult.count, 2);
   assert.equal(sorted.applied, true);
   assert.deepEqual(productNames(document), ["C", "A"]);
+  dom.window.close();
+});
+
+test("loadAll does not treat a hidden tab as a completed list", async () => {
+  const dom = createExtensionDom(`<!doctype html><body>
+    <div data-testid="watchlist">
+      <div><span>Produkt</span><span>Startpris</span><span>Pris nu</span></div>
+      <div data-product-row><a href="/a">A</a><span>1 000 kr</span><span>900 kr</span></div>
+    </div>
+  </body>`);
+  const { document, PriceRunnerContent } = dom.window;
+  const watchlist = document.querySelector("[data-testid='watchlist']");
+  let hidden = true;
+  let injected = false;
+  let movedAway = false;
+
+  Object.defineProperty(document, "hidden", { configurable: true, get: () => hidden });
+  Object.defineProperty(document.body, "scrollHeight", { configurable: true, value: 1_000 });
+  Object.defineProperty(document.documentElement, "scrollHeight", {
+    configurable: true,
+    value: 1_000,
+  });
+  Object.defineProperty(dom.window, "innerHeight", { configurable: true, value: 100 });
+  dom.window.scrollTo = (_x, y) => {
+    if (hidden && y === 800) movedAway = true;
+    if (hidden && movedAway && y === 1_000 && !injected) {
+      injected = true;
+      watchlist.insertAdjacentHTML(
+        "beforeend",
+        `<div data-product-row><a href="/b">B</a><span>2 000 kr</span><span>1 000 kr</span></div>`,
+      );
+      hidden = false;
+    }
+  };
+
+  const result = await PriceRunnerContent.loadAllWatchlistRows({
+    settleMs: 5,
+    maxRounds: 10,
+  });
+
+  assert.equal(result.loaded, true);
+  assert.equal(result.count, 2);
+  assert.equal(movedAway, true);
+  assert.ok(result.rounds > 3);
+  assert.deepEqual(productNames(document), ["A", "B"]);
   dom.window.close();
 });

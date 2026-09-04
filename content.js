@@ -34,8 +34,14 @@
   const LOADING_BUTTON_TEXT = "Laddar alla produkter…";
   const GROUP_LABEL_CLASS = "pricesorter-invalid-group-label";
   const SAVINGS_PERCENT_CLASS = "pricesorter-savings-percent";
+  const PRICE_DIRECTION = Object.freeze({
+    DOWN: "down",
+    UP: "up",
+    UNCHANGED: "unchanged",
+  });
   const OBSERVER_DEBOUNCE_MS = 250;
   const LOAD_ALL_SETTLE_MS = 450;
+  const HIDDEN_SCROLL_PHASE_MS = 1_100;
   const LOAD_ALL_MAX_ROUNDS = 50;
   const LOAD_ALL_STABLE_ROUNDS = 3;
   const originalOrder = new WeakMap();
@@ -218,9 +224,17 @@
     const label = formatSavingsPercent(entry.product.startPrice, entry.product.currentPrice);
     if (!label) return;
 
+    const direction =
+      entry.product.currentPrice > entry.product.startPrice
+        ? PRICE_DIRECTION.UP
+        : entry.product.currentPrice < entry.product.startPrice
+          ? PRICE_DIRECTION.DOWN
+          : PRICE_DIRECTION.UNCHANGED;
+
     const badge = document.createElement("span");
-    badge.className = SAVINGS_PERCENT_CLASS;
+    badge.className = `${SAVINGS_PERCENT_CLASS} ${SAVINGS_PERCENT_CLASS}--${direction}`;
     badge.setAttribute("data-pricesorter-owned", "true");
+    badge.setAttribute("data-price-direction", direction);
     badge.setAttribute("data-pricesorter-start", String(entry.product.startPrice));
     badge.setAttribute("data-pricesorter-current", String(entry.product.currentPrice));
     badge.setAttribute(
@@ -228,7 +242,7 @@
       `${label}. Beräknat från ${entry.product.startPrice} kr till ${entry.product.currentPrice} kr.`,
     );
     badge.title = `Beräknat från ${entry.product.startPrice} kr till ${entry.product.currentPrice} kr`;
-    badge.textContent = ` (${label})`;
+    badge.textContent = label;
     savingsAnchor(entry.row).appendChild(badge);
   }
 
@@ -250,8 +264,25 @@
     return label;
   }
 
-  function sleep(ms) {
+  function pageTimerSleep(ms) {
     return new Promise((resolve) => window.setTimeout(resolve, ms));
+  }
+
+  async function sleep(ms) {
+    // Timers owned by a web page are heavily throttled after its tab becomes
+    // hidden. Ask the extension service worker to own this delay so loading and
+    // sorting can keep advancing while the user works in another tab.
+    if (!chrome?.runtime?.sendMessage) return pageTimerSleep(ms);
+    try {
+      const response = await chrome.runtime.sendMessage({
+        type: "PRICESORTER_DELAY",
+        delayMs: ms,
+      });
+      if (response?.ok) return;
+    } catch (_error) {
+      // Tests, extension reloads, and browser shutdown can remove the worker.
+    }
+    await pageTimerSleep(ms);
   }
 
   function findScrollParent(element) {
@@ -285,6 +316,23 @@
     scrollParent.scrollTop = scrollParent.scrollHeight;
   }
 
+  function scrollWatchlistAwayFromEnd(analysis = analyzePage()) {
+    const scrollParent = findScrollParent(analysis.container ?? document.body);
+    if (
+      scrollParent === document.scrollingElement ||
+      scrollParent === document.documentElement ||
+      scrollParent === document.body
+    ) {
+      const height = Math.max(
+        document.body?.scrollHeight ?? 0,
+        document.documentElement?.scrollHeight ?? 0,
+      );
+      window.scrollTo(0, Math.max(0, height - window.innerHeight * 2));
+      return;
+    }
+    scrollParent.scrollTop = Math.max(0, scrollParent.scrollHeight - scrollParent.clientHeight * 2);
+  }
+
   function productCount() {
     return analyzePage().entries?.length ?? 0;
   }
@@ -294,7 +342,7 @@
   async function loadAllWatchlistRows(options = {}) {
     const settleMs = options.settleMs ?? LOAD_ALL_SETTLE_MS;
     const maxRounds = options.maxRounds ?? LOAD_ALL_MAX_ROUNDS;
-    const stableRoundsNeeded = options.stableRounds ?? LOAD_ALL_STABLE_ROUNDS;
+    const configuredStableRounds = options.stableRounds;
     const manageObserver = options.manageObserver !== false;
     if (loadAllInProgress) {
       return { loaded: false, count: productCount(), rounds: 0, reason: "already-loading" };
@@ -305,23 +353,49 @@
     let previousCount = -1;
     let stableRounds = 0;
     let rounds = 0;
+    let foregroundRounds = 0;
 
     try {
-      for (; rounds < maxRounds; rounds += 1) {
+      while (
+        foregroundRounds < maxRounds ||
+        (configuredStableRounds === undefined && document.hidden)
+      ) {
+        rounds += 1;
+        if (!document.hidden) foregroundRounds += 1;
         const analysis = analyzePage();
         if (!analysis.supported) break;
 
         const count = analysis.entries.length;
         if (count === previousCount) {
-          stableRounds += 1;
-          if (stableRounds >= stableRoundsNeeded) break;
+          const allowHiddenCompletion = configuredStableRounds !== undefined;
+          if (document.hidden && !allowHiddenCompletion) {
+            stableRounds = 0;
+          } else {
+            stableRounds += 1;
+          }
+          const stableRoundsNeeded = configuredStableRounds ?? LOAD_ALL_STABLE_ROUNDS;
+          // PriceRunner may suspend its own rendering work in a background tab.
+          // Never mistake that browser-imposed pause for a fully loaded list.
+          if (
+            stableRounds >= stableRoundsNeeded &&
+            (allowHiddenCompletion || !document.hidden)
+          ) {
+            break;
+          }
         } else {
           previousCount = count;
           stableRounds = 0;
         }
 
+        if (document.hidden && configuredStableRounds === undefined) {
+          // PriceRunner only requests its next 15 rows when a bottom sentinel
+          // enters the viewport. Move it out and back in on separate worker-
+          // driven tasks so its IntersectionObserver gets a fresh transition.
+          scrollWatchlistAwayFromEnd(analysis);
+          await sleep(HIDDEN_SCROLL_PHASE_MS);
+        }
         scrollWatchlistTowardEnd(analysis);
-        await sleep(settleMs);
+        await sleep(document.hidden ? HIDDEN_SCROLL_PHASE_MS : settleMs);
       }
 
       window.scrollTo(0, 0);

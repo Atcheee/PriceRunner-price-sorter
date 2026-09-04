@@ -12,6 +12,9 @@
   "permissions": [
     "storage"
   ],
+  "background": {
+    "service_worker": "background.js"
+  },
   "action": {
     "default_title": "PriceRunner Extension",
     "default_popup": "dist/popup.html",

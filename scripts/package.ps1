@@ -20,6 +20,7 @@ New-Item -ItemType Directory -Force -Path $stage | Out-Null
 
 $files = @(
   "manifest.json",
+  "background.js",
   "core.js",
   "page-parser.js",
   "content.js",
