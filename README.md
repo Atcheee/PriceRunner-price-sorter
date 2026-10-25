@@ -6,6 +6,7 @@ Fokuserad bevakningsassistent för PriceRunner. Tillägget sorterar, analyserar 
 
 - Sortering efter högst rabatt, störst besparing, lägst aktuellt pris eller lägst jämförpris när det finns.
 - Stabil återställning till listans ursprungliga ordning.
+- Laddning av hela bevakningslistan fortsätter även när du byter flik, innan listan sorteras.
 - Otillgängliga, saknade och oläsbara rader döljs aldrig. De grupperas tydligt längst ned.
 - Parserstatus med antal produkter, läsbara priser, otillgängliga produkter, största besparing och varningar.
 - Lokal CSV-export med produktnamn, URL, startpris, aktuellt pris, besparing, rabatt, lagerstatus och tidpunkt.
@@ -98,6 +99,7 @@ Manuell smoke-checklista för både Chrome och Brave:
 - Verifiera att popupen visar **Stöds inte** på vanlig PriceRunner-sida.
 - Öppna stödd bevakningslista och kontrollera totaler samt parserstatus.
 - Prova alla fyra sorteringslägen och kontrollera invalid-gruppen.
+- Klicka **Sortera efter rabatt**, byt direkt till en annan flik och kontrollera att hela listan laddas och sorteras utan ett andra klick.
 - Välj **Ursprunglig ordning** och kontrollera exakt återställning.
 - Exportera CSV och kontrollera kolumner, UTF-8 och tidpunkt.
 - Stäng av sidknappen, ladda om och kontrollera att preferensen sparas.

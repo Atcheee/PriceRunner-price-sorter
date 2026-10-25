@@ -33,6 +33,18 @@
         "https://*.pricerunner.fi/*",
         "https://*.pricerunner.com/*"
       ],
+      "js": ["watchlist-loader.js"],
+      "world": "MAIN",
+      "run_at": "document_start"
+    },
+    {
+      "matches": [
+        "https://*.pricerunner.se/*",
+        "https://*.pricerunner.dk/*",
+        "https://*.pricerunner.no/*",
+        "https://*.pricerunner.fi/*",
+        "https://*.pricerunner.com/*"
+      ],
       "js": [
         "core.js",
         "page-parser.js",

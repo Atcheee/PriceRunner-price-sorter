@@ -21,8 +21,13 @@ assert(manifest.version === "2.0.0", "manifest version must be 2.0.0");
 assert(JSON.stringify(manifest.permissions) === JSON.stringify(["storage"]), "only storage permission is allowed");
 assert(!manifest.host_permissions, "host_permissions must not be added");
 assert(
-  JSON.stringify(manifest.content_scripts?.[0]?.matches) === JSON.stringify(expectedMatches),
+  manifest.content_scripts.every((script) => JSON.stringify(script.matches) === JSON.stringify(expectedMatches)),
   "content script matches differ from supported HTTPS domains",
+);
+const loaderScript = manifest.content_scripts.find((script) => script.js?.includes("watchlist-loader.js"));
+assert(
+  loaderScript?.world === "MAIN" && loaderScript.run_at === "document_start",
+  "watchlist loader must capture page observers in MAIN at document_start",
 );
 
 const runtimeFiles = new Set([
@@ -41,6 +46,7 @@ for (const relativeFile of runtimeFiles) {
 
 const scannableFiles = [
   "background.js",
+  "watchlist-loader.js",
   "core.js",
   "page-parser.js",
   "content.js",

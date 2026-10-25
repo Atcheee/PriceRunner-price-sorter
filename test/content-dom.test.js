@@ -410,3 +410,63 @@ test("loadAll does not treat a hidden tab as a completed list", async () => {
   assert.deepEqual(productNames(document), ["A", "B"]);
   dom.window.close();
 });
+
+for (const hidden of [true, false]) {
+test(`full sort waits through slow batches and finishes while tab stays ${hidden ? "hidden" : "visible"}`, async () => {
+  const dom = createExtensionDom(`<!doctype html><body>
+    <main data-testid="watchlist"><div><table><thead><tr><th>Produkt</th><th>Startpris</th><th>Pris nu</th></tr></thead>
+      <tbody><tr><td><a href="/a">A</a></td><td>1 000 kr</td><td>900 kr</td></tr></tbody>
+    </table></div><div id="sentinel"></div></main>
+  </body>`);
+  const { document, PriceRunnerContent } = dom.window;
+  Object.defineProperty(document, "hidden", { configurable: true, value: hidden });
+  dom.window.scrollTo = () => {};
+  dom.window.IntersectionObserver = class {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  };
+  dom.window.eval(fs.readFileSync(path.join(__dirname, "..", "watchlist-loader.js"), "utf8"));
+
+  const list = document.querySelector("tbody");
+  const sentinel = document.getElementById("sentinel");
+  let page = 0;
+  let pendingTicks = 0;
+  let workerDelays = 0;
+  const onIntersect = () => {
+    // The native browser observer never fires. Only the fallback can load rows.
+    page++;
+    observer.unobserve(sentinel);
+    sentinel.remove();
+    list.insertAdjacentHTML("beforeend", '<tr id="skeleton"><td></td></tr>');
+    pendingTicks = 55;
+  };
+  const observer = new dom.window.IntersectionObserver(onIntersect);
+  observer.observe(sentinel);
+  if (!hidden) onIntersect();
+  dom.window.chrome.runtime.sendMessage = async (message) => {
+    assert.equal(message.type, "PRICESORTER_DELAY");
+    workerDelays++;
+    assert.ok(workerDelays < 150, "load must finish without a second click");
+    if (pendingTicks && --pendingTicks === 0) {
+      document.getElementById("skeleton").remove();
+      const name = page === 1 ? "B" : "C";
+      list.insertAdjacentHTML("beforeend", `<tr><td><a href="/${name}">${name}</a></td><td>1 000 kr</td><td>${page === 1 ? 500 : 100} kr</td></tr>`);
+      if (page < 2) {
+        document.querySelector("main").append(sentinel);
+        observer.observe(sentinel);
+        if (!hidden) onIntersect();
+      }
+    }
+    return { ok: true };
+  };
+
+  const result = await PriceRunnerContent.sortWithFullList();
+  assert.equal(result.applied, true);
+  assert.equal(result.loadResult.count, 3);
+  assert.equal(page, 2);
+  assert.equal(document.hidden, hidden);
+  assert.deepEqual(Array.from(list.querySelectorAll("a"), (link) => link.textContent), ["C", "B", "A"]);
+  dom.window.close();
+});
+}

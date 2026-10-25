@@ -337,6 +337,20 @@
     return analyzePage().entries?.length ?? 0;
   }
 
+  function requestWatchlistPage(analysis) {
+    const list = analysis.container;
+    list.removeAttribute("data-pricesorter-load-state");
+    list.dispatchEvent(new Event("pricesorter:load-next", { bubbles: true }));
+    const state = list.getAttribute("data-pricesorter-load-state");
+    list.removeAttribute("data-pricesorter-load-state");
+    // PriceRunner removes the sentinel while fetching and shows skeleton rows.
+    const table = list.closest("table");
+    const hasPlaceholders = table && [...table.querySelectorAll("tbody tr")].some(
+      (row) => !row.querySelector("a[href]"),
+    );
+    return hasPlaceholders ? "pending" : state;
+  }
+
   // PriceRunner alerts/watchlist pages lazy-load rows on scroll. Sorting only
   // sees rows currently in the DOM, so we force the list to fully hydrate first.
   async function loadAllWatchlistRows(options = {}) {
@@ -354,28 +368,32 @@
     let stableRounds = 0;
     let rounds = 0;
     let foregroundRounds = 0;
+    let nextPagePending = false;
 
     try {
       while (
         foregroundRounds < maxRounds ||
-        (configuredStableRounds === undefined && document.hidden)
+        (configuredStableRounds === undefined && (document.hidden || nextPagePending))
       ) {
         rounds += 1;
         if (!document.hidden) foregroundRounds += 1;
         const analysis = analyzePage();
         if (!analysis.supported) break;
 
+        const loadState = requestWatchlistPage(analysis);
+        nextPagePending = loadState === "pending";
+
         const count = analysis.entries.length;
         if (count === previousCount) {
-          const allowHiddenCompletion = configuredStableRounds !== undefined;
-          if (document.hidden && !allowHiddenCompletion) {
+          const allowHiddenCompletion = loadState === "complete" || configuredStableRounds !== undefined;
+          if (nextPagePending || (document.hidden && !allowHiddenCompletion)) {
             stableRounds = 0;
           } else {
             stableRounds += 1;
           }
           const stableRoundsNeeded = configuredStableRounds ?? LOAD_ALL_STABLE_ROUNDS;
-          // PriceRunner may suspend its own rendering work in a background tab.
-          // Never mistake that browser-imposed pause for a fully loaded list.
+          // A quiet hidden tab is complete only when the page-world bridge
+          // confirms there is no next-page sentinel or in-flight skeleton row.
           if (
             stableRounds >= stableRoundsNeeded &&
             (allowHiddenCompletion || !document.hidden)
