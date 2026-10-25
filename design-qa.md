@@ -1,63 +1,49 @@
-**Comparison Target**
+# Dark-mode verification — 2026-10-25
 
-- Source visual truth:
-  - `C:\Users\erik9\AppData\Local\Temp\codex-clipboard-9505127a-391b-4807-b4e8-c15af9deb802.png`
-  - `C:\Users\erik9\AppData\Local\Temp\codex-clipboard-ba23efbb-d0d3-47cb-b4e4-f8a596704108.png`
-  - `C:\Users\erik9\AppData\Local\Temp\codex-clipboard-995f0e59-4a12-45b3-bc48-17e707a67552.png`
-- Implementation screenshot: pending unpacked-extension reload
-- Source pixels: 2541 × 1247, 1587 × 82, and 1648 × 1324
-- Live Chrome viewport: 2819 × 1467 CSS px
-- States: homepage, open category navigation, navbar, and authenticated alerts page in dark mode
+Verified the unpacked extension in the user's Brave profile after extension reloads.
 
-**Full-view Comparison Evidence**
+## Pages and states checked
 
-- The supplied homepage and category screenshots show dark mode reaching PriceRunner content, but the `PriceRunner` wordmark remains black and native surfaces are flattened.
-- Live inspection traced the wordmark fill to PriceRunner's `--header-logo` token.
-- The homepage also displayed the alerts sorting action because its product grid was falsely accepted by the watchlist parser.
-- The implementation now overrides PriceRunner's semantic theme tokens and restricts sorting support to `/profile/alerts` and legacy `/watchlist`.
+- Homepage: hero, category navigation, product/sale badges, search input, history suggestions, backdrop, hover, and keyboard focus.
+- Product page: both observed offer layouts, filter sheet, shipping toggle, sorting menu, price history, popularity periods, SVG axis labels, and HTML chart tooltip.
+- Authenticated alerts: table, row menu, and unsaved alert editor including its numeric price field.
+- Perfume category: filter search, price/volume fields, sorting combobox/options, stock switch, applied filters, read-more mask, information panels, and footer.
+- Deals: hero, filters, product cards, and mobile layout.
+- Mobile home and alerts were checked at approximately 433 CSS pixels; final mobile deals text/input scan also passed. Temporary viewport override was reset.
 
-**Focused Region Comparison Evidence**
+## Changes verified
 
-- Navbar logo: inline PriceRunner SVG consumes `--header-logo`; dark value is now `#fafafa`.
-- Navbar search: the real input is `#search` inside a `span`; autocomplete is a direct form child containing `/results`, `/pl/`, and `/cl/` links. Both surfaces have scoped opaque dark fills.
-- Category navigation: generic host `div` and `button` backgrounds are no longer flattened, preserving PriceRunner's selected, hover, and elevated surfaces.
-- Page controls: the theme action remains available on all matching PriceRunner pages, while the green sorter appears only on supported alerts routes.
+- Complete foreground/background pairs now override local Fabric light, system, and dark theme scopes.
+- Home/deals heroes and legacy information panels have dark surfaces.
+- Both offer-title variants use readable lavender instead of hardcoded blue.
+- Sale, accent, selected-option, and applied-filter badges retain readable text.
+- Search/filter shells remain dark during hover, expose visible boundaries, and own a single focus ring. Nested inputs and readonly comboboxes no longer draw a second square outline.
+- Text fields, placeholders, numeric fields, selected periods, dropdown options, checkboxes, and stock-switch states have dark-mode colors.
+- Search/dialog backdrops darken the page rather than washing it out with white.
+- Highcharts axis labels and tooltip text override cached inline light-theme colors. Tooltip fill/outline and grid/axis lines are scoped to the chart.
+- Button foreground/background pairs switch without animating through low-contrast intermediate grays. Native transform/opacity transitions remain available.
+- Toggling to light mode restores native colors. Saved preference was restored to dark.
 
-**Findings**
+## Contrast evidence
 
-- [P0] Post-fix browser capture blocked
-  Location: live PriceRunner homepage, category navigation, navbar, and alerts page.
-  Evidence: Chrome's already-running unpacked extension continues to execute the pre-build content script until the extension is reloaded.
-  Impact: source, bundle, and DOM-target verification pass, but final updated-pixel comparison cannot be captured in the current browser instance.
-  Fix: reload the unpacked extension once, then refresh PriceRunner.
+Computed text/input scans found no remaining failures in the final sampled home, product, alerts, category, and deals states. Scans use 4.5:1 for normal text and 3:1 for large text; image-backed content is excluded. SVG fills and HTML tooltips were inspected separately.
 
-**Required Fidelity Surfaces**
+Representative measured pairs:
 
-- Fonts and typography: PriceRunner-owned and unchanged.
-- Spacing and layout rhythm: PriceRunner-owned; broad structural overrides removed.
-- Colors and visual tokens: semantic page, content, input, text, border, icon, and logo tokens implemented.
-- Image quality and asset fidelity: original PriceRunner assets retained; product imagery receives only a neutral image backing.
-- Copy and content: unchanged except for the extension's theme/sort controls.
+- Placeholder on hovered field: 5.63:1.
+- Selected option text on purple: 11.41:1.
+- Enabled control boundary on pressed surface: 3.33:1.
+- Chart date/merchant text on tooltip surface: 7.87:1.
+- Search focus ring on field surface: 8.77:1.
 
-**Comparison History**
+The final chart tooltip showed light price text, muted readable date/merchant text, a dark fill, and a visible outline. Both stock-switch states and the hovered selected twelve-month period were exercised in Brave. The alert editor was closed without saving.
 
-- Pass 1: broad dark selectors flattened host surfaces, broke search layering, and left the logo invisible.
-- Pass 2: search shell and autocomplete received scoped opaque surfaces.
-- Pass 3: dark mode migrated to PriceRunner's semantic tokens; homepage false-positive sorting removed; theme and sort controls separated.
-- Automated evidence: 41 tests pass, production build succeeds, validation succeeds, and `git diff --check` passes.
-- Live DOM evidence: current PriceRunner search and logo structures match the scoped selectors and token override.
-- Final updated browser evidence: pending one unpacked-extension reload.
+## Automated checks
 
-**Implementation Checklist**
+- `npm test`: 43 passed, 0 failed.
+- `npm run build:content-css`: passed; tracked `styles.css` regenerated.
+- `npm run build:popup -- --configLoader native`: passed.
+- `node scripts/validate.mjs`: passed; 10 runtime references validated.
+- `git diff --check`: passed.
 
-- Reload unpacked extension.
-- Refresh `https://www.pricerunner.se/` and confirm visible PriceRunner wordmark, native menu surfaces, theme control, and no sorter.
-- Refresh `https://www.pricerunner.se/profile/alerts` and confirm theme plus sorter controls.
-- Open navbar search with `wooting` and confirm opaque, non-overlapping autocomplete.
-- Toggle light/dark once and check console errors.
-
-**Follow-up Polish**
-
-- None in source.
-
-final result: blocked
+The default bundled Vite config loader encountered a sandbox `spawn EPERM` while resolving a native Tailwind dependency. Building with Vite's native config loader succeeded; project build scripts were left unchanged.

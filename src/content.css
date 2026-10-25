@@ -80,6 +80,7 @@ html.pricesorter-dark-theme {
   --colors-bg-warning-subtle: #664600 !important;
   --colors-bg-accent: #582fb4 !important;
   --colors-bg-accent-subtle: #2f1f5a !important;
+  --colors-overlay-dialog: rgb(0 0 0 / 60%) !important;
 
   /* Status label text/badge fills ("Lägst pris", sale ribbons, etc.). */
   --colors-text-positive: #8aefb1 !important;
@@ -95,11 +96,19 @@ html.pricesorter-dark-theme {
   --colors-badge-warning: #885f00 !important;
   --colors-badge-warning-inverse: #ffd987 !important;
   --colors-badge-pop: #5a6f1a !important;
+  --colors-badge-accent: #3d2a70 !important;
+  --colors-badge-accent-inverse: #d4c4fc !important;
   --colors-badge-strong: #fafafa !important;
 
   /* Legacy green/brand ramps still referenced by offer chrome. */
   --green10: #02351f !important;
   --green20: #014822 !important;
+  --info10: #2f1f5a !important;
+  --info20: #3d2a70 !important;
+  --supportPrimary10: #2f1f5a !important;
+  --support-primary10: #2f1f5a !important;
+  --supportPrimary20: #3d2a70 !important;
+  --support-primary20: #3d2a70 !important;
   /*
    * Ghost Button labels ("Redigera bevakning", "Jämför") use textColor "brand"
    * (CSS --brand / --brand60). Keep mid-ramp brand tokens light for readable
@@ -159,6 +168,8 @@ html.pricesorter-dark-theme {
   --primary-action-active: #f4f4f5 !important;
   --linkPrimary: #f4f4f5 !important;
   --link-primary: #f4f4f5 !important;
+  --linkPrimaryHover: #d4c4fc !important;
+  --link-primary-hover: #d4c4fc !important;
   --textOnBackground: #fafafa !important;
   --text-on-background: #fafafa !important;
   --textInverse: #fafafa !important;
@@ -167,6 +178,9 @@ html.pricesorter-dark-theme {
   --textPrimaryInverse: #fafafa !important;
   --colors-btn-primary: #fafafa !important;
   --colors-btn-secondary: #3a3a44 !important;
+  --colors-btn-tertiary: #202027 !important;
+  --colors-btn-disabled: #292931 !important;
+  --colors-btn-idle: #52525b !important;
   --colors-text-inverse: #101014 !important;
   --background-inverse: #27272a !important;
   --backgroundInverse: #27272a !important;
@@ -193,7 +207,7 @@ html.pricesorter-dark-theme {
   --input-background: #202027 !important;
   --inputBackgroundDisabled: #292931 !important;
   --input-background-disabled: #292931 !important;
-  --input-decoration: #52525b !important;
+  --input-decoration: #71717a !important;
   --inputDecorationActive: #fafafa !important;
   --input-decoration-active: #fafafa !important;
   --input-decoration-secondary: #3a3a44 !important;
@@ -220,13 +234,16 @@ html.pricesorter-dark-theme {
   --textDisabled: #a1a1aa !important;
   --input-placeholder: #a1a1aa !important;
   --colors-text-link: #c4b5fd !important;
+  --colors-text-accent: #d4c4fc !important;
+  --colors-text-accent-heading: #d4c4fc !important;
 
   --border: #303038 !important;
   --border20: #303038 !important;
   --border60: #52525b !important;
   --border100: #52525b !important;
-  --colors-border-neutral: #3a3a44 !important;
+  --colors-border-neutral: #8b8b95 !important;
   --colors-border-default: #303038 !important;
+  --colors-border-active: #a1a1aa !important;
   --backgroundLoading1: #202027 !important;
   --background-loading1: #202027 !important;
   --backgroundLoading2: #292931 !important;
@@ -248,12 +265,13 @@ html.pricesorter-dark-theme body {
 }
 
 /*
- * Klarna UI mounts .klarna-ui-DEFAULT-light on local subtrees and redefines
- * --colors-bg-* there, which would otherwise keep offer/media surfaces white
- * while inherited text tokens already flipped to light-on-dark.
+ * Fabric themes redeclare tokens on local subtrees, including dark islands
+ * inside light pages. Keep complete foreground/background pairs at each scope
+ * so buttons, badges and portalled dialogs do not mix two different palettes.
  */
 html.pricesorter-dark-theme .klarna-ui-DEFAULT-light,
-html.pricesorter-dark-theme .klarna-ui-DEFAULT-system {
+html.pricesorter-dark-theme .klarna-ui-DEFAULT-system,
+html.pricesorter-dark-theme .klarna-ui-DEFAULT-dark {
   --colors-bg-page: #101014 !important;
   --colors-bg-plain: #18181d !important;
   --colors-bg-container: #18181d !important;
@@ -268,20 +286,131 @@ html.pricesorter-dark-theme .klarna-ui-DEFAULT-system {
   --colors-bg-warning-subtle: #664600 !important;
   --colors-bg-accent: #582fb4 !important;
   --colors-bg-accent-subtle: #2f1f5a !important;
+  --colors-overlay-dialog: rgb(0 0 0 / 60%) !important;
+  --colors-btn-primary: #fafafa !important;
+  --colors-btn-secondary: #3a3a44 !important;
+  --colors-btn-tertiary: #202027 !important;
+  --colors-btn-disabled: #292931 !important;
+  --colors-btn-idle: #52525b !important;
   --colors-text-default: #f4f4f5 !important;
+  --colors-text-inverse: #101014 !important;
   --colors-text-body: #e4e4e7 !important;
   --colors-text-subtle: #b4b4bd !important;
-  --colors-text-disabled: #8b8b95 !important;
+  --colors-text-disabled: #a1a1aa !important;
   --colors-text-placeholder: #a1a1aa !important;
   --colors-text-link: #c4b5fd !important;
+  --colors-text-accent: #d4c4fc !important;
+  --colors-text-accent-heading: #d4c4fc !important;
   --colors-text-positive: #8aefb1 !important;
   --colors-text-positive-heading: #54d98d !important;
+  --colors-text-negative: #ffb8b8 !important;
+  --colors-text-negative-heading: #f55858 !important;
+  --colors-text-warning: #ffd987 !important;
+  --colors-text-warning-heading: #fbc64d !important;
   --colors-badge-positive: #046234 !important;
   --colors-badge-positive-inverse: #8aefb1 !important;
+  --colors-badge-negative: #721010 !important;
+  --colors-badge-negative-inverse: #ff8686 !important;
+  --colors-badge-warning: #885f00 !important;
+  --colors-badge-warning-inverse: #ffd987 !important;
   --colors-badge-pop: #5a6f1a !important;
+  --colors-badge-accent: #3d2a70 !important;
+  --colors-badge-accent-inverse: #d4c4fc !important;
+  --colors-badge-strong: #fafafa !important;
   --colors-border-default: #303038 !important;
-  --colors-border-neutral: #3a3a44 !important;
-  --colors-border-active: #fafafa !important;
+  --colors-border-neutral: #8b8b95 !important;
+  --colors-border-active: #a1a1aa !important;
+}
+
+/* Home/deals heroes wrap a dark Fabric island in an inverse (light) surface. */
+html.pricesorter-dark-theme body section:has(h1) > div {
+  background-color: #202027 !important;
+}
+
+/* Offer titles use a hardcoded light-theme blue rather than a link token. */
+html.pricesorter-dark-theme body a[href*="https://clk.klarna.com/"] [title],
+/* Older offer experiment puts the title on the link and blue text in a span. */
+html.pricesorter-dark-theme body a[href*="https://clk.klarna.com/"][title]
+  > div > div:first-child > span {
+  color: #c4b5fd !important;
+}
+
+/* Fabric emits literal light colors for hover/pressed states, not tokens. */
+html.pricesorter-dark-theme body
+  :where(button[role="button"], a[role="button"], button[role="radio"], [role="option"]) {
+  /* Swapping light/dark foreground pairs must not animate through gray-on-gray. */
+  transition-property: transform, opacity, box-shadow, border-color !important;
+}
+
+html.pricesorter-dark-theme body
+  :where(button[role="button"], a[role="button"], button[role="radio"], input[type="checkbox"], input[type="radio"]):not(:disabled):not([aria-disabled="true"]) {
+  border-color: #8b8b95 !important;
+}
+
+html.pricesorter-dark-theme body
+  :where(a, button, input, textarea, select, [tabindex]):focus-visible {
+  outline: 2px solid #c4b5fd !important;
+  outline-offset: 3px !important;
+}
+
+html.pricesorter-dark-theme body
+  :where(button[role="button"], a[role="button"], button[role="radio"], [role="option"]):not(:disabled):not([aria-disabled="true"]):is(:hover, :focus-visible) {
+  --colors-text-inverse: #fafafa !important;
+  background-color: #292931 !important;
+  color: #fafafa !important;
+}
+
+html.pricesorter-dark-theme body
+  :where(button[role="button"], a[role="button"], button[role="radio"], [role="option"]):not(:disabled):not([aria-disabled="true"]):active {
+  --colors-text-inverse: #fafafa !important;
+  background-color: #3a3a44 !important;
+  color: #fafafa !important;
+}
+
+html.pricesorter-dark-theme body button[role="button"][aria-pressed="true"] {
+  border-color: #a1a1aa !important;
+}
+
+/* Segmented periods/view modes and selected dropdown options need full pairs. */
+html.pricesorter-dark-theme body
+  :where(button[role="radio"][aria-checked="true"], [role="option"][aria-selected="true"]) {
+  --colors-text-inverse: #fafafa !important;
+  background-color: #3d2a70 !important;
+  border-color: #c4b5fd !important;
+  color: #fafafa !important;
+}
+
+html.pricesorter-dark-theme body [role="option"][aria-selected="true"]
+  :where(span, p) {
+  color: #fafafa !important;
+}
+
+/* Applied filters use legacy removable chips without a role or pressed state. */
+html.pricesorter-dark-theme body button[title]:has(> p) {
+  background: #3d2a70 !important;
+  color: #fafafa !important;
+  box-shadow: inset 0 0 0 1px #8b8b95 !important;
+}
+
+html.pricesorter-dark-theme body button[title]:has(> p):hover {
+  background: #4f3586 !important;
+}
+
+html.pricesorter-dark-theme body button[role="switch"] {
+  background-color: #3a3a44 !important;
+  box-shadow: inset 0 0 0 1px #8b8b95 !important;
+}
+
+html.pricesorter-dark-theme body button[role="switch"] > div {
+  background-color: #d4d4d8 !important;
+}
+
+html.pricesorter-dark-theme body button[role="switch"][aria-checked="true"] {
+  background-color: #c4b5fd !important;
+}
+
+html.pricesorter-dark-theme body button[role="switch"][aria-checked="true"] > div {
+  background-color: #101014 !important;
 }
 
 /* Belt-and-suspenders for Emotion offer cards that read --background-primary. */
@@ -296,18 +425,17 @@ html.pricesorter-dark-theme body
 }
 
 html.pricesorter-dark-theme body
+  :where(textarea, select, input:not([type="checkbox"], [type="radio"], [type="range"], [type="hidden"], [type="file"], [type="button"], [type="submit"], [type="reset"], [type="color"])) {
+  background-color: #202027 !important;
+  border-color: #71717a !important;
+  caret-color: #fafafa;
+}
+
+html.pricesorter-dark-theme body
   :where([role="dialog"], [role="menu"], [role="listbox"]) {
   background-color: var(--backgroundContentPrimary) !important;
   border-color: var(--colors-border-default) !important;
   color: var(--colors-text-default) !important;
-}
-
-/* Filter sheet primary CTA — keep label light on dark brand fills. */
-html.pricesorter-dark-theme body
-  :where([role="dialog"]) > * button:last-child,
-html.pricesorter-dark-theme body
-  :where([role="dialog"]) button[type="submit"] {
-  color: #fafafa !important;
 }
 
 /*
@@ -320,7 +448,7 @@ html.pricesorter-dark-theme body
 html.pricesorter-dark-theme body [class*="Selector-button"] {
   background: #18181d !important;
   color: #f4f4f5 !important;
-  box-shadow: inset 0 0 0 1px #52525b !important;
+  box-shadow: inset 0 0 0 1px #8b8b95 !important;
 }
 
 html.pricesorter-dark-theme body
@@ -358,6 +486,11 @@ html.pricesorter-dark-theme body footer :where(a, p, span, li) {
   color: var(--footer-top-content-text) !important;
 }
 
+/* Copyright uses inverse text on the page footer's fixed dark brand fill. */
+html.pricesorter-dark-theme body footer:not([role="dialog"] footer) {
+  --colors-text-inverse: #e4e4e7 !important;
+}
+
 html.pricesorter-dark-theme body footer
   :where(h1, h2, h3, h4, h5, h6, strong) {
   color: var(--footer-heading) !important;
@@ -384,6 +517,80 @@ html.pricesorter-dark-theme body form:has(#search)
   background-color: #18181d !important;
   border: 1px solid #3a3a44 !important;
   box-shadow: 0 18px 48px rgb(0 0 0 / 55%) !important;
+}
+
+/* Fabric search/filter fields paint their shell, including literal light hovers. */
+html.pricesorter-dark-theme body
+  span:has(> span > div > input:not([type="checkbox"], [type="radio"], [type="range"], [type="hidden"])) {
+  background-color: #202027 !important;
+  color: #f4f4f5 !important;
+  box-shadow: inset 0 0 0 1px #8b8b95 !important;
+}
+
+html.pricesorter-dark-theme body
+  span:has(> span > div > input:not([type="checkbox"], [type="radio"], [type="range"], [type="hidden"])):hover {
+  background-color: #292931 !important;
+}
+
+html.pricesorter-dark-theme body
+  span:has(> span > div > input:not([type="checkbox"], [type="radio"], [type="range"], [type="hidden"])):focus-within {
+  outline: 2px solid #c4b5fd;
+  outline-offset: 2px;
+}
+
+html.pricesorter-dark-theme body span > span > div
+  > input:not([type="checkbox"], [type="radio"], [type="range"], [type="hidden"]) {
+  background-color: transparent !important;
+  /* The surrounding shell owns the focus ring, including readonly comboboxes. */
+  outline: none !important;
+}
+
+/* Legacy read-more masks are text-only buttons with a white ::before fill. */
+html.pricesorter-dark-theme body button:not([role]):not(:has(*))::before {
+  background-color: var(--background-page) !important;
+  color: #f4f4f5 !important;
+}
+
+html.pricesorter-dark-theme body [class*="RichText"] :is(b, strong) > a:is(:hover, :focus-visible, :active) {
+  background: #292931 !important;
+  border-color: #52525b !important;
+  color: #fafafa !important;
+}
+
+/* Highcharts caches literal light-theme colors in SVG/HTML on first render. */
+html.pricesorter-dark-theme #pricegraph
+  :where(.highcharts-axis-labels text, .highcharts-axis-title, .highcharts-subtitle, .highcharts-caption, .highcharts-legend-item text) {
+  color: #b4b4bd !important;
+  fill: #b4b4bd !important;
+}
+
+html.pricesorter-dark-theme #pricegraph .highcharts-title,
+html.pricesorter-dark-theme #pricegraph .highcharts-tooltip :where(text, tspan, span),
+html.pricesorter-dark-theme #pricegraph .highchart-tooltip {
+  color: #f4f4f5 !important;
+  fill: #f4f4f5 !important;
+}
+
+html.pricesorter-dark-theme #pricegraph .highchart-tooltip__date,
+html.pricesorter-dark-theme #pricegraph .highchart-tooltip__name {
+  color: #b4b4bd !important;
+}
+
+html.pricesorter-dark-theme #pricegraph .highcharts-tooltip-box:not(.highcharts-shadow) {
+  fill: #202027 !important;
+  stroke: #71717a !important;
+}
+
+html.pricesorter-dark-theme #pricegraph .highcharts-tooltip .highcharts-shadow {
+  stroke: #000 !important;
+}
+
+html.pricesorter-dark-theme #pricegraph .highcharts-grid-line {
+  stroke: #52525b !important;
+}
+
+html.pricesorter-dark-theme #pricegraph :where(.highcharts-axis-line, .highcharts-tick) {
+  stroke: #71717a !important;
 }
 
 html.pricesorter-dark-theme body input::placeholder,
