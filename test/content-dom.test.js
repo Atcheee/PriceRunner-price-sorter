@@ -470,3 +470,66 @@ test(`full sort waits through slow batches and finishes while tab stays ${hidden
   dom.window.close();
 });
 }
+
+test("sort keeps loading after a tab switch with native page timers and frames paused", async () => {
+  const dom = createExtensionDom(`<!doctype html><body>
+    <main data-testid="watchlist"><div><table><thead><tr><th>Produkt</th><th>Startpris</th><th>Pris nu</th></tr></thead>
+      <tbody><tr><td><a href="/a">A</a></td><td>1 000 kr</td><td>900 kr</td></tr></tbody>
+    </table></div><div id="sentinel"></div></main>
+  </body>`);
+  const { document, PriceRunnerContent } = dom.window;
+  let hidden = false;
+  let now = 0;
+  let nextId = 0;
+  const nativeTimers = new Map();
+  const nativeFrames = new Map();
+  Object.defineProperty(document, "hidden", { configurable: true, get: () => hidden });
+  dom.window.performance.now = () => now;
+  dom.window.scrollTo = () => {};
+  dom.window.setTimeout = (callback) => { const id = ++nextId; nativeTimers.set(id, callback); return id; };
+  dom.window.clearTimeout = dom.window.clearInterval = (id) => nativeTimers.delete(id);
+  dom.window.requestAnimationFrame = (callback) => { const id = ++nextId; nativeFrames.set(id, callback); return id; };
+  dom.window.cancelAnimationFrame = (id) => nativeFrames.delete(id);
+  dom.window.IntersectionObserver = class { observe() {} unobserve() {} disconnect() {} };
+  dom.window.eval(fs.readFileSync(path.join(__dirname, "..", "watchlist-loader.js"), "utf8"));
+  const list = document.querySelector("tbody");
+  const sentinel = document.getElementById("sentinel");
+  let page = 0;
+  const loadPage = () => {
+    const currentPage = ++page;
+    observer.unobserve(sentinel);
+    sentinel.remove();
+    list.insertAdjacentHTML("beforeend", '<tr id="skeleton"><td></td></tr>');
+    dom.window.setTimeout(() => dom.window.requestAnimationFrame(() => {
+      document.getElementById("skeleton").remove();
+      list.insertAdjacentHTML("beforeend", `<tr><td><a href="/page-${currentPage}">Page ${currentPage}</a></td><td>1 000 kr</td><td>${currentPage === 1 ? 500 : 100} kr</td></tr>`);
+      if (currentPage < 2) {
+        document.querySelector("main").append(sentinel);
+        observer.observe(sentinel);
+      }
+    }), 500);
+  };
+  const observer = new dom.window.IntersectionObserver(loadPage);
+  observer.observe(sentinel);
+  loadPage();
+  let ticks = 0;
+  dom.window.chrome.runtime.sendMessage = async ({ delayMs }) => {
+    assert.ok(++ticks < 40, "must finish without foregrounding the tab");
+    now += delayMs;
+    hidden = true;
+    return { ok: true };
+  };
+  const result = await PriceRunnerContent.sortWithFullList();
+  assert.equal(result.applied, true);
+  assert.equal(result.loadResult.count, 3);
+  assert.equal(page, 2);
+  assert.equal(hidden, true);
+  assert.equal(nativeTimers.size, 0);
+  assert.equal(nativeFrames.size, 0);
+  const progress = JSON.parse(document.documentElement.getAttribute("data-pricesorter-load-progress"));
+  assert.equal(progress.phase, "loaded");
+  assert.equal(progress.hidden, true);
+  assert.equal(progress.hiddenCount, 3);
+  assert.deepEqual(Array.from(list.querySelectorAll("a"), (link) => link.textContent), ["Page 2", "Page 1", "A"]);
+  dom.window.close();
+});

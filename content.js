@@ -369,6 +369,16 @@
     let rounds = 0;
     let foregroundRounds = 0;
     let nextPagePending = false;
+    let hiddenCount = 0;
+    const recordProgress = (phase, count, loadState) => {
+      if (document.hidden) hiddenCount = count;
+      // Local, DOM-only diagnostics: distinguish actual background progress
+      // from work that resumes when a person or browser inspector opens the tab.
+      document.documentElement.setAttribute("data-pricesorter-load-progress", JSON.stringify({
+        phase, count, hiddenCount, hidden: document.hidden, loadState,
+        updatedAt: new Date().toISOString(),
+      }));
+    };
 
     try {
       while (
@@ -384,6 +394,7 @@
         nextPagePending = loadState === "pending";
 
         const count = analysis.entries.length;
+        recordProgress("loading", count, loadState);
         if (count === previousCount) {
           const allowHiddenCompletion = loadState === "complete" || configuredStableRounds !== undefined;
           if (nextPagePending || (document.hidden && !allowHiddenCompletion)) {
@@ -419,6 +430,7 @@
       window.scrollTo(0, 0);
       // Let the host page finish reconciling after scroll-to-top before sorting.
       await sleep(settleMs);
+      recordProgress("loaded", productCount(), "complete");
       return { loaded: true, count: productCount(), rounds };
     } finally {
       loadAllInProgress = false;
