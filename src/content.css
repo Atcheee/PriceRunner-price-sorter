@@ -413,6 +413,17 @@ html.pricesorter-dark-theme body button[role="switch"][aria-checked="true"] > di
   background-color: #101014 !important;
 }
 
+/*
+ * The price-list surface wraps the #priser anchor and its offer controls.
+ * Fabric resolves the full-width border image to a literal #F3F3F5 gradient
+ * at render time. Its `0 fill` slice paints over the token-based background,
+ * so changing background-color alone leaves the entire band light.
+ */
+html.pricesorter-dark-theme body div:has(> div > #priser) {
+  background-color: #202027 !important;
+  border-image-source: conic-gradient(#202027 0 0) !important;
+}
+
 /* Belt-and-suspenders for Emotion offer cards that read --background-primary. */
 html.pricesorter-dark-theme [class*="Card-root"] {
   background-color: var(--background-primary) !important;
@@ -488,7 +499,9 @@ html.pricesorter-dark-theme body footer :where(a, p, span, li) {
 
 /* Copyright uses inverse text on the page footer's fixed dark brand fill. */
 html.pricesorter-dark-theme body footer:not([role="dialog"] footer) {
+  --colors-bg-inverse: #101014 !important;
   --colors-text-inverse: #e4e4e7 !important;
+  background-color: #101014 !important;
 }
 
 html.pricesorter-dark-theme body footer
