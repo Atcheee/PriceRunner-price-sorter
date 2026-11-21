@@ -42,7 +42,7 @@
   const OBSERVER_DEBOUNCE_MS = 250;
   const LOAD_ALL_SETTLE_MS = 450;
   const HIDDEN_SCROLL_PHASE_MS = 1_100;
-  const LOAD_ALL_MAX_ROUNDS = 50;
+  const LOAD_ALL_STALL_MS = 60_000;
   const LOAD_ALL_STABLE_ROUNDS = 3;
   const originalOrder = new WeakMap();
   let nextOriginalIndex = 0;
@@ -140,7 +140,7 @@
   function resumeObserver() {
     if (observerPauseDepth > 0) observerPauseDepth -= 1;
     if (observerPauseDepth > 0 || !observer) return;
-    observer.observe(document.documentElement, { childList: true, subtree: true });
+    observer.observe(document.documentElement, { childList: true, characterData: true, subtree: true });
   }
 
   // Compatibility wrappers keep existing parser behavior covered while callers
@@ -221,6 +221,7 @@
 
   function renderSavingsPercent(entry) {
     removeSavingsPercent(entry.row);
+    if (entry.product.stockState === "unavailable") return;
     const label = formatSavingsPercent(entry.product.startPrice, entry.product.currentPrice);
     if (!label) return;
 
@@ -253,6 +254,24 @@
     if (indexes.some((index) => index < 0)) return null;
     // Separators/ads between product rows are fine; sort still moves only product rows.
     return { children, firstIndex: indexes[0], lastIndex: indexes.at(-1) };
+  }
+
+  function moveUnavailableToBottom(analysis) {
+    if (!analysis.supported) return;
+    const { entries, container } = analysis;
+    const lastAvailableIndex = entries.findLastIndex(({ product }) => product.stockState !== "unavailable");
+    if (lastAvailableIndex < 1) return;
+
+    const rowsToMove = entries.slice(0, lastAvailableIndex).filter(({ product }) => product.stockState === "unavailable");
+    if (!rowsToMove.length || !validateRowBlock(container, entries)) return;
+
+    const nextSibling = entries[lastAvailableIndex].row.nextSibling;
+    pauseObserver();
+    try {
+      for (const { row } of rowsToMove) container.insertBefore(row, nextSibling);
+    } finally {
+      resumeObserver();
+    }
   }
 
   function createInvalidGroupLabel(count) {
@@ -300,6 +319,13 @@
   }
 
   function scrollWatchlistTowardEnd(analysis = analyzePage()) {
+    const lastRow = analysis.container?.lastElementChild;
+    if (lastRow?.scrollIntoView) {
+      // Bring the list's loading sentinel into view even when the footer is tall.
+      lastRow.scrollIntoView({ block: "center", behavior: "instant" });
+      return;
+    }
+
     const scrollParent = findScrollParent(analysis.container ?? document.body);
     if (
       scrollParent === document.scrollingElement ||
@@ -343,10 +369,10 @@
     list.dispatchEvent(new Event("pricesorter:load-next", { bubbles: true }));
     const state = list.getAttribute("data-pricesorter-load-state");
     list.removeAttribute("data-pricesorter-load-state");
-    // PriceRunner removes the sentinel while fetching and shows skeleton rows.
-    const table = list.closest("table");
-    const hasPlaceholders = table && [...table.querySelectorAll("tbody tr")].some(
-      (row) => !row.querySelector("a[href]"),
+    // PriceRunner removes the sentinel while fetching and shows empty skeleton rows.
+    // Finished rows for unavailable products can lack links and still show text.
+    const hasPlaceholders = list.matches("tbody") && Array.from(list.rows).some(
+      (row) => !row.textContent.trim() && !row.querySelector("a[href]"),
     );
     return hasPlaceholders ? "pending" : state;
   }
@@ -355,7 +381,7 @@
   // sees rows currently in the DOM, so we force the list to fully hydrate first.
   async function loadAllWatchlistRows(options = {}) {
     const settleMs = options.settleMs ?? LOAD_ALL_SETTLE_MS;
-    const maxRounds = options.maxRounds ?? LOAD_ALL_MAX_ROUNDS;
+    const maxRounds = options.maxRounds ?? Infinity;
     const configuredStableRounds = options.stableRounds;
     const manageObserver = options.manageObserver !== false;
     if (loadAllInProgress) {
@@ -367,8 +393,8 @@
     let previousCount = -1;
     let stableRounds = 0;
     let rounds = 0;
-    let foregroundRounds = 0;
-    let nextPagePending = false;
+    let lastGrowthAt = performance.now();
+    let failure = "round-limit";
     let hiddenCount = 0;
     const recordProgress = (phase, count, loadState) => {
       if (document.hidden) hiddenCount = count;
@@ -381,39 +407,35 @@
     };
 
     try {
-      while (
-        foregroundRounds < maxRounds ||
-        (configuredStableRounds === undefined && (document.hidden || nextPagePending))
-      ) {
+      while (rounds < maxRounds) {
         rounds += 1;
-        if (!document.hidden) foregroundRounds += 1;
         const analysis = analyzePage();
-        if (!analysis.supported) break;
+        if (!analysis.supported) {
+          failure = analysis.reason;
+          break;
+        }
 
         const loadState = requestWatchlistPage(analysis);
-        nextPagePending = loadState === "pending";
-
         const count = analysis.entries.length;
         recordProgress("loading", count, loadState);
-        if (count === previousCount) {
-          const allowHiddenCompletion = loadState === "complete" || configuredStableRounds !== undefined;
-          if (nextPagePending || (document.hidden && !allowHiddenCompletion)) {
-            stableRounds = 0;
-          } else {
-            stableRounds += 1;
-          }
-          const stableRoundsNeeded = configuredStableRounds ?? LOAD_ALL_STABLE_ROUNDS;
-          // A quiet hidden tab is complete only when the page-world bridge
-          // confirms there is no next-page sentinel or in-flight skeleton row.
-          if (
-            stableRounds >= stableRoundsNeeded &&
-            (allowHiddenCompletion || !document.hidden)
-          ) {
-            break;
-          }
-        } else {
+        const now = performance.now();
+        if (count !== previousCount) {
           previousCount = count;
+          lastGrowthAt = now;
           stableRounds = 0;
+        } else if (
+          loadState === "pending" ||
+          (document.hidden && loadState !== "complete" && configuredStableRounds === undefined)
+        ) {
+          stableRounds = 0;
+        } else if (++stableRounds >= (configuredStableRounds ?? LOAD_ALL_STABLE_ROUNDS)) {
+          failure = null;
+          break;
+        }
+
+        if (now - lastGrowthAt >= LOAD_ALL_STALL_MS) {
+          failure = "stalled";
+          break;
         }
 
         if (document.hidden && configuredStableRounds === undefined) {
@@ -430,44 +452,56 @@
       window.scrollTo(0, 0);
       // Let the host page finish reconciling after scroll-to-top before sorting.
       await sleep(settleMs);
-      recordProgress("loaded", productCount(), "complete");
-      return { loaded: true, count: productCount(), rounds };
+      const count = productCount();
+      if (failure) {
+        recordProgress("incomplete", count, failure);
+        return { loaded: false, count, rounds, reason: failure };
+      }
+      recordProgress("loaded", count, "complete");
+      return { loaded: true, count, rounds };
     } finally {
       loadAllInProgress = false;
-      if (manageObserver) resumeObserver();
+      if (manageObserver) {
+        resumeObserver();
+        if (observer) scheduleRefresh();
+      }
     }
   }
 
-  function expectedSortedEntries(analysis, mode) {
+  function sortedEntryGroups(analysis, mode) {
     if (mode === core.SORT_MODES.ORIGINAL) {
-      return [...analysis.entries].sort(
+      const validEntries = [...analysis.entries].sort(
         (left, right) => left.product.originalIndex - right.product.originalIndex,
       );
+      return { validEntries, invalidEntries: [] };
     }
     const grouped = core.groupInvalidRows(
       analysis.entries.map(({ product }) => product),
       mode,
     );
     const validProducts = new Set(grouped.valid);
+    const compareProducts = core.compareProducts(mode);
+    const compareEntries = (left, right) => compareProducts(left.product, right.product);
     const validEntries = analysis.entries
       .filter(({ product }) => validProducts.has(product))
-      .sort((left, right) => core.compareProducts(mode)(left.product, right.product));
+      .sort(compareEntries);
     const invalidEntries = analysis.entries
       .filter(({ product }) => !validProducts.has(product))
-      .sort((left, right) => left.product.originalIndex - right.product.originalIndex);
-    return [...validEntries, ...invalidEntries];
+      .sort(compareEntries);
+    return { validEntries, invalidEntries };
   }
 
   function sortIntegrityIntact(analysis, mode) {
     if (!analysis?.supported || !analysis.entries.length) return false;
     if (analysis.entries.length !== lastSortedCount) return false;
 
-    const expected = expectedSortedEntries(analysis, mode);
+    const { validEntries, invalidEntries } = sortedEntryGroups(analysis, mode);
+    const expected = [...validEntries, ...invalidEntries];
     if (expected.some((entry, index) => entry.row !== analysis.entries[index].row)) return false;
 
     return analysis.entries.every((entry) => {
-      if (!Number.isFinite(entry.product.absoluteSaving)) return true;
-      return Boolean(entry.row.querySelector(`.${SAVINGS_PERCENT_CLASS}`));
+      const needsBadge = entry.product.stockState !== "unavailable" && Number.isFinite(entry.product.absoluteSaving);
+      return Boolean(entry.row.querySelector(`.${SAVINGS_PERCENT_CLASS}`)) === needsBadge;
     });
   }
 
@@ -491,25 +525,7 @@
       };
     }
 
-    let validEntries;
-    let invalidEntries;
-    if (mode === core.SORT_MODES.ORIGINAL) {
-      validEntries = [...analysis.entries].sort((left, right) => left.product.originalIndex - right.product.originalIndex);
-      invalidEntries = [];
-    } else {
-      const grouped = core.groupInvalidRows(
-        analysis.entries.map(({ product }) => product),
-        mode,
-      );
-      const validProducts = new Set(grouped.valid);
-      validEntries = analysis.entries
-        .filter(({ product }) => validProducts.has(product))
-        .sort((left, right) => core.compareProducts(mode)(left.product, right.product));
-      invalidEntries = analysis.entries
-        .filter(({ product }) => !validProducts.has(product))
-        .sort((left, right) => left.product.originalIndex - right.product.originalIndex);
-    }
-
+    const { validEntries, invalidEntries } = sortedEntryGroups(analysis, mode);
     const orderedEntries = [...validEntries, ...invalidEntries];
     const changed = orderedEntries.some((entry, index) => entry !== analysis.entries[index]);
     pauseObserver();
@@ -527,7 +543,7 @@
       resumeObserver();
     }
 
-    activeSortMode = mode === core.SORT_MODES.ORIGINAL ? null : mode;
+    activeSortMode = mode;
     if (mode === core.SORT_MODES.PERCENTAGE_SAVING || mode === core.SORT_MODES.ABSOLUTE_SAVING) {
       preferredSortMode = mode;
     }
@@ -546,11 +562,16 @@
 
   async function sortWithFullList(mode = core.SORT_MODES.PERCENTAGE_SAVING) {
     pauseObserver();
+    let sorting = false;
     try {
       const loadResult = await loadAllWatchlistRows({ manageObserver: false });
+      if (!loadResult.loaded) {
+        return { applied: false, changed: false, ...publicPageState(), loadResult };
+      }
       // Hold the load gate through sort + settle so host mutations cannot wipe
       // the result before we re-assert integrity.
       loadAllInProgress = true;
+      sorting = true;
       let sortResult = applySort(mode);
       await sleep(LOAD_ALL_SETTLE_MS);
       if (mode !== core.SORT_MODES.ORIGINAL) {
@@ -559,8 +580,9 @@
       }
       return { ...sortResult, loadResult };
     } finally {
-      loadAllInProgress = false;
+      if (sorting) loadAllInProgress = false;
       resumeObserver();
+      if (observer && !sorting && !loadAllInProgress) scheduleRefresh();
     }
   }
 
@@ -590,6 +612,9 @@
 
   async function exportCsvWithFullList() {
     const loadResult = await loadAllWatchlistRows();
+    if (!loadResult.loaded) {
+      return { exported: false, count: 0, ...publicPageState(), loadResult };
+    }
     return { ...exportCsv(), loadResult };
   }
 
@@ -610,7 +635,8 @@
       result = { applied: false, changed: false };
     }
 
-    if (!result.applied) button.textContent = "Sortering inte tillgänglig";
+    if (result.loadResult?.reason === "stalled") button.textContent = "Kunde inte ladda alla produkter";
+    else if (!result.applied) button.textContent = "Sortering inte tillgänglig";
     else if (!result.changed) button.textContent = "Ingen ordningsändring";
     else button.textContent = sortedTextForMode(mode);
 
@@ -725,11 +751,13 @@
     window.clearTimeout(observerTimer);
     observerTimer = window.setTimeout(() => {
       if (loadAllInProgress || observerPauseDepth > 0) return;
-      refreshAvailability();
+      const analysis = refreshAvailability();
+      if (!activeSortMode) {
+        moveUnavailableToBottom(analysis);
+        return;
+      }
       // Keep sort sticky when the host re-renders or lazy-loads more rows.
-      if (!activeSortMode) return;
-      const analysis = analyzePage();
-      if (sortIntegrityIntact(analysis, activeSortMode)) return;
+      if (activeSortMode === core.SORT_MODES.ORIGINAL || sortIntegrityIntact(analysis, activeSortMode)) return;
       applySort(activeSortMode);
     }, OBSERVER_DEBOUNCE_MS);
   }
@@ -745,11 +773,14 @@
         scheduleRefresh();
         return;
       }
-      const siteMutation = mutations.some((mutation) =>
-        [...mutation.addedNodes, ...mutation.removedNodes].some(
+      const siteMutation = mutations.some((mutation) => {
+        if (mutation.type === "characterData") {
+          return Boolean(mutation.target.parentElement?.closest("tr, [role='row'], [data-product-row]"));
+        }
+        return [...mutation.addedNodes, ...mutation.removedNodes].some(
           (node) => node.nodeType !== Node.ELEMENT_NODE || !node.matches?.("[data-pricesorter-owned]"),
-        ),
-      );
+        );
+      });
       if (siteMutation) scheduleRefresh();
     });
     resumeObserver();
@@ -767,7 +798,7 @@
     themeMediaQuery?.addEventListener?.("change", () => {
       if (preferredTheme === THEME_MODES.SYSTEM) applyPageTheme(preferredTheme);
     });
-    refreshAvailability();
+    moveUnavailableToBottom(refreshAvailability());
     startObserver();
     loadPreferences();
     watchPreferences();

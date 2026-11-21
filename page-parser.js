@@ -35,7 +35,6 @@
 
   const PRICE_TOKEN_PATTERN = /(?:\d[\d\s\u00a0\u202f'.,]*\d|\d)\s*(?:kr|sek|dkk|nok|eur|€)/gi;
   const UNIT_PRICE_PATTERN = /(?:\d[\d\s\u00a0\u202f'.,]*\d|\d)\s*(?:kr|sek|dkk|nok|eur|€)\s*\/\s*(?:kg|g|l|ml|st|styck|pcs?)/i;
-  const UNAVAILABLE_TEXT_PATTERN = /slut i lager|ej i lager|inte i lager|udsolgt|ikke på lager|loppuunmyyty|ei varastossa|out of stock|unavailable/i;
   const MISSING_PRICE_PATTERN = /^[-–—−]+$|pris saknas|price unavailable|hinta puuttuu/i;
 
   function elementText(element) {
@@ -43,8 +42,9 @@
   }
 
   function directCells(row) {
+    const isTableRow = row?.matches("tr");
     return Array.from(row?.children ?? []).filter(
-      (element) => elementText(element) && !element.matches?.("[data-pricesorter-owned]"),
+      (element) => !element.matches("[data-pricesorter-owned]") && (isTableRow || elementText(element)),
     );
   }
 
@@ -87,12 +87,15 @@
     return SELECTORS.productLinks.some((selector) => row.matches?.(selector) || row.querySelector?.(selector));
   }
 
-  function isProductRow(row, headerRow) {
-    if (!row || row === headerRow || row.matches?.("[data-pricesorter-owned]")) return false;
-    if (row.matches?.("[data-product-row]")) return true;
+  function isProductRow(row, header) {
+    if (row === header.row || row.matches("[data-pricesorter-owned]")) return false;
+    if (row.matches("[data-product-row]")) return true;
     const text = elementText(row);
-    const priceCount = (text.match(PRICE_TOKEN_PATTERN) ?? []).length;
-    return hasProductLink(row) && (priceCount > 0 || UNAVAILABLE_TEXT_PATTERN.test(text));
+    const unavailable = core.hasUnavailableStockText(text);
+    if (!hasProductLink(row)) return unavailable && Boolean(header.row) && row.matches("tr, [role='row']");
+
+    const currentCell = directCells(row)[header.currentIndex];
+    return unavailable || extractPriceTokens(text).length > 0 || MISSING_PRICE_PATTERN.test(elementText(currentCell));
   }
 
   function candidateParents(container) {
@@ -106,7 +109,7 @@
       const children = Array.from(parent.children);
       if (!children.length) continue;
       const header = findHeaderForParent(parent, children);
-      const rows = children.filter((child) => isProductRow(child, header.row));
+      const rows = children.filter((child) => isProductRow(child, header));
       if (!rows.length) continue;
 
       const explicitRows = rows.filter((row) => row.matches("[data-product-row], [role='row']")).length;
@@ -174,7 +177,7 @@
     const text = elementText(cell);
     const token = extractPriceTokens(text)[0];
     if (token) return token;
-    if (MISSING_PRICE_PATTERN.test(text)) return text;
+    if (MISSING_PRICE_PATTERN.test(text)) return "-";
     return null;
   }
 
@@ -191,12 +194,12 @@
     const labeledCurrent = labeledPriceCandidate(rowText, HEADER_LABELS.current);
     const headerStart = priceCellCandidate(cells[header.startIndex]);
     const headerCurrent = priceCellCandidate(cells[header.currentIndex]);
-    const usesHeader = headerStart !== null && headerCurrent !== null;
+    const usesHeader = headerCurrent === "-" || (headerStart !== null && headerCurrent !== null);
     const startPriceText =
       explicitPriceCandidate(row.getAttribute("data-start-price")) ??
       explicitPriceCandidate(startElement ? elementText(startElement) : null) ??
       labeledStart ??
-      (usesHeader ? headerStart : tokens[0] ?? "");
+      (usesHeader ? headerStart ?? "" : tokens[0] ?? "");
     const currentPriceText =
       explicitPriceCandidate(row.getAttribute("data-current-price")) ??
       explicitPriceCandidate(currentElement ? elementText(currentElement) : null) ??

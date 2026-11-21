@@ -14,6 +14,7 @@
       "slut i lager",
       "ej i lager",
       "inte i lager",
+      "inte längre tillgänglig",
       "utgått",
       "ikke på lager",
       "ikke lagerført",
@@ -121,9 +122,13 @@
     };
   }
 
+  function hasUnavailableStockText(text) {
+    return UNAVAILABLE_PATTERN.test(text);
+  }
+
   function detectStockState(stockText, currentPrice) {
     const text = normalizeText(stockText);
-    if (UNAVAILABLE_PATTERN.test(text) || currentPrice.inactive) return "unavailable";
+    if (hasUnavailableStockText(text) || currentPrice.inactive) return "unavailable";
     if (AVAILABLE_PATTERN.test(text) || currentPrice.readable) return "available";
     return "unknown";
   }
@@ -181,6 +186,10 @@
 
   function compareProducts(mode) {
     return (left, right) => {
+      const leftUnavailable = left?.stockState === "unavailable";
+      const rightUnavailable = right?.stockState === "unavailable";
+      if (leftUnavailable !== rightUnavailable) return leftUnavailable ? 1 : -1;
+
       const leftInvalid = isInvalidForMode(left, mode);
       const rightInvalid = isInvalidForMode(right, mode);
       if (leftInvalid !== rightInvalid) return leftInvalid ? 1 : -1;
@@ -282,6 +291,7 @@
     compareProducts,
     generateCsv,
     groupInvalidRows,
+    hasUnavailableStockText,
     normalizeText,
     parsePriceToken,
     parseProductRow,

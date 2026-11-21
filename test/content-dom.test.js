@@ -242,6 +242,46 @@ test("sticky sort reorders newly lazy-loaded rows", async () => {
   dom.window.close();
 });
 
+test("alerts put unavailable rows last on open, after lazy loading, and after price changes", async () => {
+  const dom = createExtensionDom(`<!doctype html><body>
+    <main data-testid="watchlist"><table>
+      <thead><tr><th>Produkt</th><th>Senast uppdaterad</th><th>Startpris</th><th>Pris nu</th><th>Bevakning</th></tr></thead>
+      <tbody>
+        <tr id="removed"><td>Inte längre tillgänglig</td><td>11 november 2026</td><td>59 kr</td><td>60 kr</td><td>50 kr</td></tr>
+        <tr id="no-price"><td><a href="/no-price">No price</a></td><td>18 juli 2026</td><td>–</td><td>–</td><td>–</td></tr>
+        <tr id="first"><td><a href="/first">First</a></td><td></td><td>1 000 kr</td><td>900 kr</td><td>800 kr</td></tr>
+        <tr id="second"><td><a href="/second">Second</a></td><td></td><td>1 000 kr</td><td>500 kr</td><td>400 kr</td></tr>
+      </tbody>
+    </table></main>
+  </body>`);
+  dom.reconfigure({ url: "https://www.pricerunner.se/profile/alerts" });
+  const { document, PriceRunnerContent } = dom.window;
+  const list = document.querySelector("tbody");
+  const rowOrder = () => Array.from(list.rows, (row) => row.id);
+  const settle = () => new Promise((resolve) => dom.window.setTimeout(resolve, 350));
+
+  PriceRunnerContent.init();
+  assert.deepEqual(rowOrder(), ["first", "second", "removed", "no-price"]);
+  assert.equal(PriceRunnerContent.analyzePage().summary.unavailableItems, 2);
+
+  list.insertAdjacentHTML("beforeend", '<tr id="third"><td><a href="/third">Third</a></td><td></td><td>–</td><td>800 kr</td><td>700 kr</td></tr>');
+  await settle();
+  assert.deepEqual(rowOrder(), ["first", "second", "third", "removed", "no-price"]);
+
+  document.getElementById("first").cells[3].firstChild.nodeValue = "–";
+  await settle();
+  assert.deepEqual(rowOrder(), ["second", "third", "first", "removed", "no-price"]);
+
+  PriceRunnerContent.applySort(PriceRunnerCore.SORT_MODES.PERCENTAGE_SAVING);
+  assert.deepEqual(rowOrder(), ["second", "third", "removed", "no-price", "first"]);
+  assert.equal(document.querySelector("#removed .pricesorter-savings-percent"), null);
+
+  PriceRunnerContent.applySort(PriceRunnerCore.SORT_MODES.ORIGINAL);
+  assert.deepEqual(rowOrder(), ["removed", "no-price", "first", "second", "third"]);
+  PriceRunnerContent.stopObserver();
+  dom.window.close();
+});
+
 test("sticky sort restores order when host re-render keeps the same count", async () => {
   const dom = createExtensionDom(`<!doctype html><body>
     <div data-testid="watchlist">
@@ -408,6 +448,72 @@ test("loadAll does not treat a hidden tab as a completed list", async () => {
   assert.equal(movedAway, true);
   assert.ok(result.rounds > 3);
   assert.deepEqual(productNames(document), ["A", "B"]);
+  dom.window.close();
+});
+
+test("a finished list with an unavailable final row stops loading without scrolling to the footer", async () => {
+  const dom = createExtensionDom(`<!doctype html><body>
+    <main data-testid="watchlist"><table><thead><tr><th>Produkt</th><th>Startpris</th><th>Pris nu</th></tr></thead>
+      <tbody>
+        <tr><td><a href="/a">A</a></td><td>1 000 kr</td><td>900 kr</td></tr>
+        <tr id="unavailable"><td>Inte längre tillgänglig</td><td>3 841 kr</td><td>3 793 kr</td></tr>
+      </tbody>
+    </table></main><footer>PriceRunner</footer>
+  </body>`);
+  dom.reconfigure({ url: "https://www.pricerunner.se/profile/alerts" });
+  const { document, PriceRunnerContent } = dom.window;
+  Object.defineProperty(document, "hidden", { configurable: true, value: false });
+  document.addEventListener("pricesorter:load-next", ({ target }) => {
+    target.setAttribute("data-pricesorter-load-state", "complete");
+  });
+  dom.window.chrome.runtime.sendMessage = async () => ({ ok: true });
+  const row = document.getElementById("unavailable");
+  const listScrolls = [];
+  const pageScrolls = [];
+  row.scrollIntoView = (options) => listScrolls.push(options.block);
+  dom.window.scrollTo = (x, y) => pageScrolls.push([x, y]);
+
+  const result = await PriceRunnerContent.loadAllWatchlistRows({ maxRounds: 8 });
+
+  assert.equal(result.loaded, true);
+  assert.equal(result.rounds, 4);
+  assert.deepEqual(listScrolls, ["center", "center", "center"]);
+  assert.deepEqual(pageScrolls, [[0, 0]]);
+  assert.equal(row.isConnected, true);
+  dom.window.close();
+});
+
+test("a stalled loading row releases the loader and a retry can sort", async () => {
+  const dom = createExtensionDom(`<!doctype html><body>
+    <main data-testid="watchlist"><table><thead><tr><th>Produkt</th><th>Startpris</th><th>Pris nu</th></tr></thead>
+      <tbody>
+        <tr><td><a href="/a">A</a></td><td>1 000 kr</td><td>900 kr</td></tr>
+        <tr><td><a href="/b">B</a></td><td>1 000 kr</td><td>500 kr</td></tr>
+        <tr id="skeleton"><td></td></tr>
+      </tbody>
+    </table></main>
+  </body>`);
+  const { document, PriceRunnerContent } = dom.window;
+  Object.defineProperty(document, "hidden", { configurable: true, value: false });
+  let time = 0;
+  dom.window.performance.now = () => time;
+  dom.window.scrollTo = () => {};
+  dom.window.chrome.runtime.sendMessage = async () => {
+    time += 60_000;
+    if (time >= 300_000) document.getElementById("skeleton")?.remove();
+    return { ok: true };
+  };
+
+  const stalled = await PriceRunnerContent.sortWithFullList();
+  assert.equal(stalled.loadResult.reason, "stalled");
+  assert.equal(stalled.applied, false);
+  assert.deepEqual(Array.from(document.querySelectorAll("tbody a"), (link) => link.textContent), ["A", "B"]);
+
+  document.getElementById("skeleton").remove();
+  dom.window.chrome.runtime.sendMessage = async () => ({ ok: true });
+  const retried = await PriceRunnerContent.sortWithFullList();
+  assert.equal(retried.applied, true);
+  assert.deepEqual(Array.from(document.querySelectorAll("tbody a"), (link) => link.textContent), ["B", "A"]);
   dom.window.close();
 });
 
